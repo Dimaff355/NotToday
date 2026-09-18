@@ -30,9 +30,17 @@
 ## Сборка
 
 ```bash
-./gradlew assembleDebug   # сборка debug-APK
-./gradlew test            # юнит-тесты
+./gradlew assembleDebug     # сборка debug-APK
+./gradlew test              # юнит-тесты
+./gradlew assembleRelease   # подписанный release-APK (если есть ключ, см. ниже)
 ```
+
+Готовые APK лежат в разделе [Releases](https://github.com/Dimaff355/NotToday/releases).
+
+Ключ подписи и пароли хранятся локально в `signing/` (папка в `.gitignore`): release-сборка
+берёт их оттуда, а без этого файла просто собирается неподписанной, так что свежий клон
+репозитория собирается как обычно. Ключ нужно сохранить — иначе новые версии не установятся
+поверх уже выпущенных.
 
 ## Структура
 
