@@ -311,26 +311,37 @@ class TasksViewModel(
         repository.updateTask(task.copy(isPriority = !task.isPriority, updatedAt = System.currentTimeMillis()))
     }
 
-    suspend fun deleteTask(taskId: String): Boolean {
-        val task = repository.findTask(taskId) ?: return false
-        val snapshot = DeletedTaskSnapshot(task, repository.findAttachments(taskId))
-        if (!repository.deleteTask(taskId)) return false
-        reminderCoordinator.onTaskDeleted(taskId)
-        deletedTasks[taskId] = snapshot
-        return true
+    /** Deletes every task that still exists and returns the ids that were actually removed. */
+    suspend fun deleteTasks(taskIds: List<String>): List<String> {
+        val deleted = mutableListOf<String>()
+        taskIds.forEach { taskId ->
+            val task = repository.findTask(taskId) ?: return@forEach
+            val snapshot = DeletedTaskSnapshot(task, repository.findAttachments(taskId))
+            if (!repository.deleteTask(taskId)) return@forEach
+            reminderCoordinator.onTaskDeleted(taskId)
+            deletedTasks[taskId] = snapshot
+            deleted += taskId
+        }
+        return deleted
     }
 
-    suspend fun undoDelete(taskId: String): Boolean {
-        val snapshot = deletedTasks.remove(taskId) ?: return false
-        repository.insertTask(snapshot.task)
-        repository.insertAttachments(snapshot.attachments)
-        reminderCoordinator.onTaskRestored(snapshot.task)
-        return true
+    suspend fun undoDelete(taskIds: List<String>): Boolean {
+        var restoredAny = false
+        taskIds.forEach { taskId ->
+            val snapshot = deletedTasks.remove(taskId) ?: return@forEach
+            repository.insertTask(snapshot.task)
+            repository.insertAttachments(snapshot.attachments)
+            reminderCoordinator.onTaskRestored(snapshot.task)
+            restoredAny = true
+        }
+        return restoredAny
     }
 
-    fun finalizeDelete(taskId: String) {
-        val snapshot = deletedTasks.remove(taskId) ?: return
-        attachmentStore.cleanupTask(snapshot.task.id)
+    fun finalizeDelete(taskIds: List<String>) {
+        taskIds.forEach { taskId ->
+            val snapshot = deletedTasks.remove(taskId) ?: return@forEach
+            attachmentStore.cleanupTask(snapshot.task.id)
+        }
     }
 
     private fun dueLocalDate(millis: Long): LocalDate = java.time.Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()

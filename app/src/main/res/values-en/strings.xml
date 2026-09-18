@@ -33,6 +33,8 @@
     <string name="no_tasks_today">No tasks for today</string>
     <string name="no_active_tasks">No active tasks</string>
     <string name="completed_count">Completed: %1$d</string>
+    <string name="delete_all">Delete all completed</string>
+    <string name="completed_tasks_deleted">Completed tasks deleted</string>
     <string name="task_completed">Task completed</string>
     <string name="task_completed_state">Completed</string>
     <string name="task_not_completed_state">Not completed</string>

@@ -33,6 +33,8 @@
     <string name="no_tasks_today">今天没有任务</string>
     <string name="no_active_tasks">没有进行中的任务</string>
     <string name="completed_count">已完成：%1$d</string>
+    <string name="delete_all">删除全部已完成</string>
+    <string name="completed_tasks_deleted">已完成任务已删除</string>
     <string name="task_completed">任务已完成</string>
     <string name="task_completed_state">已完成</string>
     <string name="task_not_completed_state">未完成</string>

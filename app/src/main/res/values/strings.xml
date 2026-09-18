@@ -33,6 +33,8 @@
     <string name="no_tasks_today">На сегодня задач нет</string>
     <string name="no_active_tasks">Нет активных задач</string>
     <string name="completed_count">Выполнено: %1$d</string>
+    <string name="delete_all">Удалить все выполненные</string>
+    <string name="completed_tasks_deleted">Выполненные задачи удалены</string>
     <string name="task_completed">Задача выполнена</string>
     <string name="task_completed_state">Выполнено</string>
     <string name="task_not_completed_state">Не выполнено</string>

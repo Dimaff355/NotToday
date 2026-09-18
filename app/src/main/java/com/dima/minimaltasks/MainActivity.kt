@@ -77,17 +77,22 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -144,7 +149,11 @@ import com.dima.minimaltasks.data.settings.ThemeMode
 import com.dima.minimaltasks.notifications.AlarmAccuracy
 import com.dima.minimaltasks.notifications.ReminderScheduling
 import com.dima.minimaltasks.ui.theme.MinimalTasksTheme
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -157,6 +166,40 @@ import java.util.Locale
 
 private val Blue = Color(0xFF2F80ED)
 private val Red = Color(0xFFEF4444)
+
+/**
+ * Shows a single undo snackbar at a time: a newer message replaces the current one, and the
+ * replaced action expires (its undo window is over).
+ */
+private class UndoSnackbarController(
+    private val hostState: SnackbarHostState,
+    private val scope: CoroutineScope,
+) {
+    private var currentJob: Job? = null
+
+    fun show(
+        message: String,
+        actionLabel: String,
+        onAction: suspend () -> Unit,
+        onExpired: suspend () -> Unit = {},
+    ) {
+        currentJob?.cancel()
+        currentJob = scope.launch {
+            try {
+                val result = hostState.showSnackbar(
+                    message = message,
+                    actionLabel = actionLabel,
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) onAction() else onExpired()
+            } catch (cancelled: CancellationException) {
+                withContext(NonCancellable) { onExpired() }
+                throw cancelled
+            }
+        }
+    }
+}
 
 class MainActivity : AppCompatActivity() {
     private lateinit var app: MinimalTasksApplication
@@ -208,6 +251,7 @@ private fun MinimalTasksApp(
     var backupOperationInProgress by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val snackbarController = remember(scope, snackbarHostState) { UndoSnackbarController(snackbarHostState, scope) }
 
     LaunchedEffect(tasks, settings.notificationsEnabled) {
         reminderPermissionController.requestAutomaticIfNeeded(
@@ -221,33 +265,55 @@ private fun MinimalTasksApp(
         } else {
             val completed = viewModel.completeTask(task.id) != null
             if (completed) {
-                scope.launch {
-                    val result = snackbarHostState.showSnackbar(
-                        message = context.getString(R.string.task_completed),
-                        actionLabel = context.getString(R.string.undo),
-                    )
-                    if (result == SnackbarResult.ActionPerformed) viewModel.undoCompletion(task.id)
-                }
+                snackbarController.show(
+                    message = context.getString(R.string.task_completed),
+                    actionLabel = context.getString(R.string.undo),
+                    onAction = { viewModel.undoCompletion(task.id) },
+                )
             }
             completed
         }
     }
     val handleDelete: (String) -> Unit = { taskId ->
         scope.launch {
-            if (viewModel.deleteTask(taskId)) {
-                val result = snackbarHostState.showSnackbar(
+            val deleted = viewModel.deleteTasks(listOf(taskId))
+            if (deleted.isNotEmpty()) {
+                snackbarController.show(
                     message = context.getString(R.string.task_deleted),
                     actionLabel = context.getString(R.string.undo),
+                    onAction = { viewModel.undoDelete(deleted) },
+                    onExpired = { viewModel.finalizeDelete(deleted) },
                 )
-                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(taskId)
-                else viewModel.finalizeDelete(taskId)
+            }
+        }
+    }
+    val handleDeleteCompleted: (List<String>) -> Unit = { taskIds ->
+        scope.launch {
+            val deleted = viewModel.deleteTasks(taskIds)
+            if (deleted.isNotEmpty()) {
+                snackbarController.show(
+                    message = context.getString(R.string.completed_tasks_deleted),
+                    actionLabel = context.getString(R.string.undo),
+                    onAction = { viewModel.undoDelete(deleted) },
+                    onExpired = { viewModel.finalizeDelete(deleted) },
+                )
             }
         }
     }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                key(data) {
+                    SwipeToDismissBox(
+                        state = rememberSwipeToDismissBoxState(),
+                        backgroundContent = {},
+                        onDismiss = { data.dismiss() },
+                    ) { Snackbar(data) }
+                }
+            }
+        },
         bottomBar = {
             BottomNavigation(
                 selectedTab = selectedTab,
@@ -266,6 +332,7 @@ private fun MinimalTasksApp(
                     completionFeedback = CompletionFeedbackPolicy.from(settings),
                     onTogglePriority = { task -> scope.launch { viewModel.togglePriority(task) } },
                     onDelete = handleDelete,
+                    onDeleteCompleted = handleDeleteCompleted,
                 )
                 1 -> CalendarScreen(
                     viewModel = viewModel,
@@ -274,6 +341,7 @@ private fun MinimalTasksApp(
                     completionFeedback = CompletionFeedbackPolicy.from(settings),
                     onTogglePriority = { task -> scope.launch { viewModel.togglePriority(task) } },
                     onDelete = handleDelete,
+                    onDeleteCompleted = handleDeleteCompleted,
                     onAdd = { date -> viewModel.openNewTaskForDate(date) },
                 )
                 else -> SettingsScreen(
@@ -306,6 +374,7 @@ private fun CalendarScreen(
     completionFeedback: com.dima.minimaltasks.ui.CompletionFeedbackDecision,
     onTogglePriority: (TaskEntity) -> Unit,
     onDelete: (String) -> Unit,
+    onDeleteCompleted: (List<String>) -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales.get(0)
     val zoneId = ZoneId.systemDefault()
@@ -433,6 +502,13 @@ private fun CalendarScreen(
                         ) {
                             Text(stringResource(R.string.completed_count, completed.size), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                             Spacer(Modifier.weight(1f))
+                            IconButton(onClick = { onDeleteCompleted(completed.map(TaskEntity::id)) }) {
+                                Icon(
+                                    Icons.Default.DeleteOutline,
+                                    contentDescription = stringResource(R.string.delete_all),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             Icon(
                                 imageVector = if (showCompleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                 contentDescription = stringResource(if (showCompleted) R.string.hide_completed else R.string.show_completed),
@@ -521,6 +597,7 @@ private fun TodayScreen(
     completionFeedback: com.dima.minimaltasks.ui.CompletionFeedbackDecision,
     onTogglePriority: (TaskEntity) -> Unit,
     onDelete: (String) -> Unit,
+    onDeleteCompleted: (List<String>) -> Unit,
 ) {
     val active = tasks.filterNot(TaskEntity::completed)
     val completed = tasks.filter(TaskEntity::completed)
@@ -583,6 +660,13 @@ private fun TodayScreen(
                     ) {
                         Text(stringResource(R.string.completed_count, completed.size), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                         Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { onDeleteCompleted(completed.map(TaskEntity::id)) }) {
+                            Icon(
+                                Icons.Default.DeleteOutline,
+                                contentDescription = stringResource(R.string.delete_all),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         Icon(
                             imageVector = if (showCompleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                             contentDescription = stringResource(if (showCompleted) R.string.hide_completed else R.string.show_completed),
