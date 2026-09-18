@@ -65,8 +65,8 @@ interface TaskDao {
     @Query("DELETE FROM tasks WHERE id = :taskId")
     suspend fun deleteById(taskId: String): Int
 
-    @Query("DELETE FROM tasks WHERE recurrenceParentTaskId = :parentId")
-    suspend fun deleteChildFor(parentId: String): Int
+    @Query("UPDATE tasks SET recurrenceParentTaskId = NULL WHERE recurrenceParentTaskId = :parentId")
+    suspend fun detachChild(parentId: String): Int
 
     @Query("UPDATE tasks SET completed = 1, completedAt = :completedAt, updatedAt = :updatedAt WHERE id = :taskId AND completed = 0")
     suspend fun markCompleted(taskId: String, completedAt: Long, updatedAt: Long): Int

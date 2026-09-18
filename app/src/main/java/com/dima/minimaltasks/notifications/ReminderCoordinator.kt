@@ -30,7 +30,7 @@ object ReminderMutationDecisions {
 
     fun afterUndoCompletion(result: UndoCompletionResult, notificationsEnabled: Boolean, nowMillis: Long): ReminderMutationPlan =
         ReminderMutationPlan(
-            cancelTaskIds = setOfNotNull(result.removedChildId, result.restoredTask.id),
+            cancelTaskIds = result.removedChildIds.toSet() + result.restoredTask.id,
             scheduleTasks = if (notificationsEnabled && ReminderScheduling.shouldSchedule(result.restoredTask, nowMillis)) {
                 listOf(result.restoredTask)
             } else {

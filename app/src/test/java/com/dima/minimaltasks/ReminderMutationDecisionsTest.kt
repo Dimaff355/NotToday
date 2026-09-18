@@ -37,13 +37,13 @@ class ReminderMutationDecisionsTest {
     }
 
     @Test
-    fun undo_completion_cancels_known_child_and_reschedules_restored_task() {
+    fun undo_completion_cancels_the_generated_chain_and_reschedules_restored_task() {
         val restored = task("original", now + 60_000)
-        val result = UndoCompletionResult(restoredTask = restored, removedChildId = "child")
+        val result = UndoCompletionResult(restoredTask = restored, removedChildIds = listOf("child", "grandchild"))
 
         val plan = ReminderMutationDecisions.afterUndoCompletion(result, notificationsEnabled = true, nowMillis = now)
 
-        assertEquals(setOf("original", "child"), plan.cancelTaskIds)
+        assertEquals(setOf("original", "child", "grandchild"), plan.cancelTaskIds)
         assertEquals(listOf(restored), plan.scheduleTasks)
     }
 

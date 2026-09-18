@@ -104,6 +104,25 @@ class BackupFormatTest {
     }
 
     @Test
+    fun manifestValidationRejectsAnOccurrenceWhoseParentWasDeleted() {
+        val orphan = TaskEntity(
+            id = "orphan",
+            title = "Task",
+            createdAt = 1,
+            updatedAt = 1,
+            recurrenceParentTaskId = "missing",
+        )
+        val invalid = BackupManifest(
+            createdAt = 1,
+            tasks = listOf(orphan),
+            attachments = emptyList(),
+            settings = SettingsState(),
+        )
+
+        assertThrows(BackupValidationException::class.java) { BackupFormat.validate(invalid) }
+    }
+
+    @Test
     fun zipSlipAndUnexpectedPathsAreRejected() {
         listOf(
             "../escape.bin",
