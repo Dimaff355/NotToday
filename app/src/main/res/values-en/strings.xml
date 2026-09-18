@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Tasks</string>
+    <string name="app_name">Not today</string>
     <string name="today">Today</string>
     <string name="date_today">Thu, April 24, 2025</string>
     <string name="add_task">Add task</string>
@@ -78,8 +78,7 @@
     <string name="remove">Remove</string>
     <string name="restore">Restore</string>
     <string name="open">Open</string>
-    <string name="has_description">has description</string>
-    <string name="detail_separator">  ·  </string>
+    <string name="detail_separator">"  ·  "</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="error_title_required">Enter a task title</string>

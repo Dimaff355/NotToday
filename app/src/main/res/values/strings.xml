@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Задачи</string>
+    <string name="app_name">Не сегодня</string>
     <string name="today">Сегодня</string>
     <string name="date_today">Чт, 24 апреля 2025</string>
     <string name="add_task">Добавить задачу</string>
@@ -78,8 +78,7 @@
     <string name="remove">Удалить</string>
     <string name="restore">Вернуть</string>
     <string name="open">Открыть</string>
-    <string name="has_description">есть описание</string>
-    <string name="detail_separator">  ·  </string>
+    <string name="detail_separator">"  ·  "</string>
     <string name="cancel">Отмена</string>
     <string name="save">Сохранить</string>
     <string name="error_title_required">Введите название задачи</string>

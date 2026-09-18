@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">任务</string>
+    <string name="app_name">不是今天</string>
     <string name="today">今天</string>
     <string name="date_today">2025年4月24日，星期四</string>
     <string name="add_task">添加任务</string>
@@ -78,8 +78,7 @@
     <string name="remove">删除</string>
     <string name="restore">恢复</string>
     <string name="open">打开</string>
-    <string name="has_description">有描述</string>
-    <string name="detail_separator">  ·  </string>
+    <string name="detail_separator">"  ·  "</string>
     <string name="cancel">取消</string>
     <string name="save">保存</string>
     <string name="error_title_required">请输入任务标题</string>
