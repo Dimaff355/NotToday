@@ -128,4 +128,15 @@
     <string name="reminder_body">Due: %1$s</string>
     <string name="reminder_complete">Complete</string>
     <string name="reminder_snooze">Snooze for 10 minutes</string>
+    <string name="welcome_title">Welcome</string>
+    <string name="welcome_subtitle">Tasks, reminders, and attachments stay on your device. No network, no accounts.</string>
+    <string name="welcome_permissions">Permissions</string>
+    <string name="welcome_permissions_hint">You can change these later in settings.</string>
+    <string name="welcome_notifications_title">Notifications</string>
+    <string name="welcome_notifications_description">Reminders for tasks with a set time</string>
+    <string name="welcome_exact_alarms_title">Exact reminders</string>
+    <string name="welcome_exact_alarms_description">Fire at the exact minute, without delay</string>
+    <string name="welcome_allow">Allow</string>
+    <string name="welcome_granted">Enabled</string>
+    <string name="welcome_continue">Continue</string>
 </resources>

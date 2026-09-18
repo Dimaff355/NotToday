@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
@@ -141,6 +143,8 @@ import com.dima.minimaltasks.ui.CalendarMonthModel
 import com.dima.minimaltasks.ui.CalendarTaskGrouping
 import com.dima.minimaltasks.ui.CompletionFeedback
 import com.dima.minimaltasks.ui.CompletionFeedbackPolicy
+import com.dima.minimaltasks.ui.OnboardingModel
+import com.dima.minimaltasks.ui.OnboardingPermission
 import com.dima.minimaltasks.ui.TasksViewModel
 import com.dima.minimaltasks.ui.TasksViewModelFactory
 import com.dima.minimaltasks.data.settings.SettingsRepository
@@ -214,16 +218,26 @@ class MainActivity : AppCompatActivity() {
         app = application as MinimalTasksApplication
         reminderPermissionController = ReminderPermissionController(this, app)
         setContent {
-            val settings by app.settingsRepository.state.collectAsStateWithLifecycle(initialValue = SettingsState())
-            MinimalTasksTheme(themeMode = settings.themeMode) {
-                MinimalTasksApp(
-                    viewModel = tasksViewModel,
-                    contentResolver = contentResolver,
-                    settings = settings,
-                    settingsRepository = app.settingsRepository,
-                    backupManager = app.backupManager,
-                    reminderPermissionController = reminderPermissionController,
-                )
+            // Null until DataStore has answered: starting from the default state would flash the
+            // welcome screen at every cold start for users who finished it long ago.
+            val settingsState by app.settingsRepository.state.collectAsStateWithLifecycle(initialValue = null)
+            MinimalTasksTheme(themeMode = settingsState?.themeMode ?: ThemeMode.SYSTEM) {
+                val settings = settingsState
+                when {
+                    settings == null -> Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {}
+                    !settings.welcomeCompleted -> WelcomeGate(
+                        reminderPermissionController = reminderPermissionController,
+                        onFinished = { app.settingsRepository.markWelcomeCompleted() },
+                    )
+                    else -> MinimalTasksApp(
+                        viewModel = tasksViewModel,
+                        contentResolver = contentResolver,
+                        settings = settings,
+                        settingsRepository = app.settingsRepository,
+                        backupManager = app.backupManager,
+                        reminderPermissionController = reminderPermissionController,
+                    )
+                }
             }
         }
     }
@@ -362,6 +376,135 @@ private fun MinimalTasksApp(
     }
     editor?.let { state ->
         TaskEditorSheet(state, viewModel, contentResolver, viewModel::cancelEditor)
+    }
+}
+
+@Composable
+private fun WelcomeGate(
+    reminderPermissionController: ReminderPermissionController,
+    onFinished: suspend () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val notificationsGranted by reminderPermissionController.notificationsGranted.collectAsStateWithLifecycle()
+    val alarmAccuracy by reminderPermissionController.alarmAccuracy.collectAsStateWithLifecycle()
+    WelcomeScreen(
+        permissions = OnboardingModel.permissions(Build.VERSION.SDK_INT),
+        notificationsGranted = notificationsGranted,
+        alarmAccuracy = alarmAccuracy,
+        onAllowNotifications = { reminderPermissionController.requestExplicit(true) },
+        onAllowExactAlarms = reminderPermissionController::requestExactAlarmSettings,
+        onContinue = { scope.launch { onFinished() } },
+    )
+}
+
+/** First-run screen: says what the app is and asks for the reminders permissions up front. */
+@Composable
+private fun WelcomeScreen(
+    permissions: List<OnboardingPermission>,
+    notificationsGranted: Boolean,
+    alarmAccuracy: AlarmAccuracy,
+    onAllowNotifications: () -> Unit,
+    onAllowExactAlarms: () -> Unit,
+    onContinue: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 28.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            Spacer(Modifier.height(36.dp))
+            Text(
+                text = stringResource(R.string.welcome_title),
+                color = MaterialTheme.colorScheme.onBackground,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                fontSize = 40.sp,
+                lineHeight = 44.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            )
+            Text(
+                text = stringResource(R.string.welcome_subtitle),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 16.sp,
+                lineHeight = 22.sp,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            if (permissions.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.welcome_permissions),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(top = 30.dp),
+                )
+                permissions.forEach { permission ->
+                    when (permission) {
+                        OnboardingPermission.NOTIFICATIONS -> PermissionRow(
+                            icon = Icons.Default.Notifications,
+                            title = stringResource(R.string.welcome_notifications_title),
+                            description = stringResource(R.string.welcome_notifications_description),
+                            granted = notificationsGranted,
+                            onAllow = onAllowNotifications,
+                        )
+                        OnboardingPermission.EXACT_ALARMS -> PermissionRow(
+                            icon = Icons.Default.Schedule,
+                            title = stringResource(R.string.welcome_exact_alarms_title),
+                            description = stringResource(R.string.welcome_exact_alarms_description),
+                            granted = alarmAccuracy == AlarmAccuracy.EXACT,
+                            onAllow = onAllowExactAlarms,
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.welcome_permissions_hint),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
+            }
+        }
+        Button(
+            onClick = onContinue,
+            modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 20.dp).height(52.dp),
+        ) {
+            Text(stringResource(R.string.welcome_continue), fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun PermissionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    granted: Boolean,
+    onAllow: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Blue, modifier = Modifier.size(24.dp))
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp)) {
+            Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 17.sp)
+            Text(
+                text = description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        if (granted) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = Blue, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.welcome_granted), color = Blue, fontSize = 14.sp)
+            }
+        } else {
+            OutlinedButton(onClick = onAllow) { Text(stringResource(R.string.welcome_allow)) }
+        }
     }
 }
 

@@ -285,6 +285,7 @@ object BackupFormat {
         .put("vibrationEnabled", settings.vibrationEnabled)
         .put("notificationsEnabled", settings.notificationsEnabled)
         .put("notificationPermissionAsked", settings.notificationPermissionAsked)
+        .put("welcomeCompleted", settings.welcomeCompleted)
 
     private fun settingsFromJson(value: JSONObject): SettingsState {
         val themeName = requiredString(value, "themeMode", 16)
@@ -295,6 +296,8 @@ object BackupFormat {
             vibrationEnabled = requiredBoolean(value, "vibrationEnabled"),
             notificationsEnabled = requiredBoolean(value, "notificationsEnabled"),
             notificationPermissionAsked = requiredBoolean(value, "notificationPermissionAsked"),
+            // Backups from versions without the first-run screen restore as already onboarded.
+            welcomeCompleted = if (value.has("welcomeCompleted")) requiredBoolean(value, "welcomeCompleted") else true,
         )
     }
 

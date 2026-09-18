@@ -6,4 +6,5 @@ data class SettingsState(
     val vibrationEnabled: Boolean = true,
     val notificationsEnabled: Boolean = true,
     val notificationPermissionAsked: Boolean = false,
+    val welcomeCompleted: Boolean = false,
 )

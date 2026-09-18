@@ -30,6 +30,8 @@ class ReminderPermissionController(
     private var exactSettingsLaunched = false
     private val _alarmAccuracy = MutableStateFlow(app.reminderScheduler.alarmAccuracy())
     val alarmAccuracy: StateFlow<AlarmAccuracy> = _alarmAccuracy.asStateFlow()
+    private val _notificationsGranted = MutableStateFlow(hasNotificationPermission())
+    val notificationsGranted: StateFlow<Boolean> = _notificationsGranted.asStateFlow()
 
     private val notificationPermissionLauncher = activity.registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -37,6 +39,7 @@ class ReminderPermissionController(
         val prompt = pendingPrompt
         pendingPrompt = null
         automaticPromptInFlight = false
+        _notificationsGranted.value = granted
         activity.lifecycleScope.launch {
             if (granted) {
                 app.reminderCoordinator.setNotificationsEnabled(true)
@@ -58,6 +61,12 @@ class ReminderPermissionController(
         enableNotifications(PromptKind.EXPLICIT)
     }
 
+    /** Opens the exact-alarm screen on demand; the one-shot guard only suppresses automatic launches. */
+    fun requestExactAlarmSettings() {
+        exactSettingsLaunched = false
+        maybeLaunchExactAlarmSettings()
+    }
+
     fun requestAutomaticIfNeeded(hasEligibleTimedTask: Boolean) {
         if (!hasEligibleTimedTask || Build.VERSION.SDK_INT < 33 || hasNotificationPermission() || automaticPromptInFlight) return
         activity.lifecycleScope.launch {
@@ -72,6 +81,7 @@ class ReminderPermissionController(
 
     fun onResume() {
         _alarmAccuracy.value = app.reminderScheduler.alarmAccuracy()
+        _notificationsGranted.value = hasNotificationPermission()
         activity.lifecycleScope.launch {
             app.reminderCoordinator.reconcile()
             _alarmAccuracy.value = app.reminderScheduler.alarmAccuracy()
@@ -87,6 +97,10 @@ class ReminderPermissionController(
             return
         }
         pendingPrompt = promptKind
+        if (promptKind == PromptKind.EXPLICIT) {
+            // The explicit request is the one prompt the user gets: don't ask again automatically.
+            activity.lifecycleScope.launch { app.settingsRepository.markNotificationPermissionAsked() }
+        }
         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 

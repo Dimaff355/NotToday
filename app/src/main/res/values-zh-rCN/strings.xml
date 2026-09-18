@@ -128,4 +128,15 @@
     <string name="reminder_body">到时间了：%1$s</string>
     <string name="reminder_complete">完成</string>
     <string name="reminder_snooze">延后10分钟</string>
+    <string name="welcome_title">欢迎</string>
+    <string name="welcome_subtitle">任务、提醒和附件都只保存在本机。无需网络，无需账号。</string>
+    <string name="welcome_permissions">权限</string>
+    <string name="welcome_permissions_hint">你可以随时在设置中更改。</string>
+    <string name="welcome_notifications_title">通知</string>
+    <string name="welcome_notifications_description">为设定时间的任务发送提醒</string>
+    <string name="welcome_exact_alarms_title">精确提醒</string>
+    <string name="welcome_exact_alarms_description">在指定分钟准时触发，不延迟</string>
+    <string name="welcome_allow">允许</string>
+    <string name="welcome_granted">已启用</string>
+    <string name="welcome_continue">继续</string>
 </resources>

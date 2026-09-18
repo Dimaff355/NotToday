@@ -22,6 +22,7 @@ class SettingsRepository(private val context: Context) {
         val vibrationEnabled = booleanPreferencesKey("vibration_enabled")
         val notificationsEnabled = booleanPreferencesKey("notifications_enabled")
         val notificationPermissionAsked = booleanPreferencesKey("notification_permission_asked")
+        val welcomeCompleted = booleanPreferencesKey("welcome_completed")
     }
 
     val state: Flow<SettingsState> = context.settingsDataStore.data
@@ -35,6 +36,7 @@ class SettingsRepository(private val context: Context) {
                 vibrationEnabled = preferences[Keys.vibrationEnabled] ?: true,
                 notificationsEnabled = preferences[Keys.notificationsEnabled] ?: true,
                 notificationPermissionAsked = preferences[Keys.notificationPermissionAsked] ?: false,
+                welcomeCompleted = preferences[Keys.welcomeCompleted] ?: false,
             )
         }
 
@@ -58,11 +60,16 @@ class SettingsRepository(private val context: Context) {
         it[Keys.notificationPermissionAsked] = true
     }
 
+    suspend fun markWelcomeCompleted() = context.settingsDataStore.edit {
+        it[Keys.welcomeCompleted] = true
+    }
+
     suspend fun replace(value: SettingsState) = context.settingsDataStore.edit {
         it[Keys.themeMode] = value.themeMode.name
         it[Keys.completionSoundEnabled] = value.completionSoundEnabled
         it[Keys.vibrationEnabled] = value.vibrationEnabled
         it[Keys.notificationsEnabled] = value.notificationsEnabled
         it[Keys.notificationPermissionAsked] = value.notificationPermissionAsked
+        it[Keys.welcomeCompleted] = value.welcomeCompleted
     }
 }
