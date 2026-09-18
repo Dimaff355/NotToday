@@ -1,0 +1,14 @@
+# Секреты и локальные файлы
+.env
+*.zip
+
+# Сборка
+build/
+.gradle/
+local.properties
+
+# Kotlin / IDE
+.kotlin/
+.idea/
+*.iml
+.vscode/
