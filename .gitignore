@@ -9,6 +9,9 @@ build/
 .gradle/
 local.properties
 
+# Ключ подписи релиза
+signing/
+
 # Kotlin / IDE
 .kotlin/
 .idea/
