@@ -78,6 +78,33 @@ class CalendarMonthModelTest {
         assertTrue(completedSummary.completedOnly)
     }
 
+    @Test
+    fun month_browsing_keeps_the_day_of_month_and_clamps_short_months() {
+        val today = LocalDate.of(2026, 1, 31)
+
+        assertEquals(LocalDate.of(2026, 2, 28), CalendarMonthModel.selectionFor(YearMonth.of(2026, 2), today))
+        assertEquals(LocalDate.of(2026, 4, 30), CalendarMonthModel.selectionFor(YearMonth.of(2026, 4), today))
+        assertEquals(LocalDate.of(2026, 3, 31), CalendarMonthModel.selectionFor(YearMonth.of(2026, 3), today))
+
+        val eighteenth = LocalDate.of(2026, 9, 18)
+        assertEquals(LocalDate.of(2026, 10, 18), CalendarMonthModel.selectionFor(YearMonth.of(2026, 10), eighteenth))
+        assertEquals(eighteenth, CalendarMonthModel.selectionFor(YearMonth.of(2026, 9), eighteenth))
+    }
+
+    @Test
+    fun month_browsing_lands_on_the_current_day_inside_the_visible_grid() {
+        val today = LocalDate.of(2026, 3, 15)
+
+        for (delta in listOf(-14L, -1L, 0L, 1L, 13L)) {
+            val month = YearMonth.from(today).plusMonths(delta)
+            val selected = CalendarMonthModel.selectionFor(month, today)
+            val grid = CalendarMonthModel.forMonth(month, Locale.forLanguageTag("ru-RU"))
+
+            assertEquals(today.dayOfMonth, selected.dayOfMonth)
+            assertTrue(grid.cells.any { it.date == selected })
+        }
+    }
+
     private fun assertMonthHasAllDays(month: YearMonth, expectedDays: Int) {
         val model = CalendarMonthModel.forMonth(month, Locale.US)
         assertEquals(42, model.cells.size)

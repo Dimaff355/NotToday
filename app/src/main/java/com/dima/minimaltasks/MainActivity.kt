@@ -175,7 +175,6 @@ class MainActivity : AppCompatActivity() {
             MinimalTasksTheme(themeMode = settings.themeMode) {
                 MinimalTasksApp(
                     viewModel = tasksViewModel,
-                    context = applicationContext,
                     contentResolver = contentResolver,
                     settings = settings,
                     settingsRepository = app.settingsRepository,
@@ -195,13 +194,13 @@ class MainActivity : AppCompatActivity() {
 @Composable
 private fun MinimalTasksApp(
     viewModel: TasksViewModel,
-    context: Context,
     contentResolver: android.content.ContentResolver,
     settings: SettingsState,
     settingsRepository: SettingsRepository,
     backupManager: BackupManager,
     reminderPermissionController: ReminderPermissionController,
 ) {
+    val context = LocalContext.current
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
     val editor by viewModel.editor.collectAsStateWithLifecycle()
     val alarmAccuracy by reminderPermissionController.alarmAccuracy.collectAsStateWithLifecycle()
@@ -294,7 +293,7 @@ private fun MinimalTasksApp(
         }
     }
     editor?.let { state ->
-        TaskEditorSheet(state, viewModel, contentResolver, context, viewModel::cancelEditor)
+        TaskEditorSheet(state, viewModel, contentResolver, viewModel::cancelEditor)
     }
 }
 
@@ -330,9 +329,7 @@ private fun CalendarScreen(
 
     fun moveMonth(monthDelta: Long) {
         val nextMonth = displayedMonth.plusMonths(monthDelta)
-        val today = LocalDate.now()
-        val nextDate = if (YearMonth.from(today) == nextMonth) today else nextMonth.atDay(1)
-        selectedDateText = nextDate.toString()
+        selectedDateText = CalendarMonthModel.selectionFor(nextMonth, LocalDate.now()).toString()
         displayedMonthText = nextMonth.toString()
     }
 
@@ -617,7 +614,6 @@ private fun TaskRow(
     val feedbackView = LocalView.current
     val locale = LocalLocale.current.platformLocale
     val due = TaskFormatters.duePresentation(task.dueAt, task.dueHasTime, System.currentTimeMillis(), locale)
-    val descriptionLabel = stringResource(R.string.has_description)
     val checkboxOutline = MaterialTheme.colorScheme.outline
     val detailSeparator = stringResource(R.string.detail_separator)
     val completionActionDescription = stringResource(
@@ -632,10 +628,6 @@ private fun TaskRow(
         task.recurrenceUnit?.let {
             if (isNotEmpty()) append(detailSeparator)
             append(recurrenceLabel(it, task.recurrenceInterval))
-        }
-        if (task.description != null) {
-            if (isNotEmpty()) append(detailSeparator)
-            append(descriptionLabel)
         }
     }
     Row(
@@ -782,9 +774,11 @@ private fun TaskEditorSheet(
     state: TaskEditorState,
     viewModel: TasksViewModel,
     contentResolver: android.content.ContentResolver,
-    context: Context,
     onDismiss: () -> Unit,
 ) {
+    // Date and time pickers are platform dialogs: they need an Activity-backed context,
+    // an application context fails with BadTokenException.
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { viewModel.stageAttachment(contentResolver, it) } }
     val date = state.dueAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() } ?: LocalDate.now()

@@ -51,7 +51,6 @@ data class TaskEditorState(
     val recurrenceUnit: RecurrenceUnit,
     val recurrenceInterval: String,
     val recurrenceWeekdayMask: Int,
-    val recurrenceZoneId: String,
     val attachments: List<AttachmentEntity>,
     val removedAttachmentIds: Set<String> = emptySet(),
     val stagedAttachments: List<StagedAttachmentState> = emptyList(),
@@ -97,7 +96,6 @@ class TasksViewModel(
             recurrenceUnit = RecurrenceUnit.DAY,
             recurrenceInterval = "1",
             recurrenceWeekdayMask = 0,
-            recurrenceZoneId = ZoneId.systemDefault().id,
             attachments = emptyList(),
         )
     }
@@ -128,7 +126,6 @@ class TasksViewModel(
                 recurrenceUnit = task.recurrenceUnit ?: RecurrenceUnit.DAY,
                 recurrenceInterval = task.recurrenceInterval.toString(),
                 recurrenceWeekdayMask = task.recurrenceWeekdayMask,
-                recurrenceZoneId = task.recurrenceZoneId,
                 attachments = repository.findAttachments(task.id),
             )
         }
@@ -228,7 +225,7 @@ class TasksViewModel(
             recurrenceUnit = state.recurrenceUnit.takeIf { state.recurrenceEnabled },
             recurrenceInterval = if (state.recurrenceEnabled) interval ?: 1 else 1,
             recurrenceWeekdayMask = if (state.recurrenceEnabled && state.recurrenceUnit == RecurrenceUnit.WEEK) state.recurrenceWeekdayMask else 0,
-            recurrenceZoneId = if (state.recurrenceEnabled) ZoneId.systemDefault().id else ZoneId.systemDefault().id,
+            recurrenceZoneId = ZoneId.systemDefault().id,
             updatedAt = now,
         )
 

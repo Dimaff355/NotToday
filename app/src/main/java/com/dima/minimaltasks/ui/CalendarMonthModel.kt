@@ -26,6 +26,10 @@ data class CalendarMonthModel(
     }
 
     companion object {
+        /** Keeps the day-of-month of [today] when browsing [month], clamped to shorter months. */
+        fun selectionFor(month: YearMonth, today: LocalDate): LocalDate =
+            month.atDay(minOf(today.dayOfMonth, month.lengthOfMonth()))
+
         fun forMonth(month: YearMonth, locale: Locale): CalendarMonthModel {
             val firstDay = WeekFields.of(locale).firstDayOfWeek
             val monthStart = month.atDay(1)

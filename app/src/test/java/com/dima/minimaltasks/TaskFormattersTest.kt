@@ -67,7 +67,6 @@ class TaskFormattersTest {
             recurrenceUnit = RecurrenceUnit.DAY,
             recurrenceInterval = "1",
             recurrenceWeekdayMask = 0,
-            recurrenceZoneId = zone.id,
             attachments = emptyList(),
         )
 
