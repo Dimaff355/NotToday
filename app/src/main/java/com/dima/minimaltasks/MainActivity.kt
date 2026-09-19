@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
@@ -1062,6 +1063,11 @@ private fun TaskEditorSheet(
                 Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = Blue)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.due_date), modifier = Modifier.weight(1f))
+                if (state.dueAt != null) {
+                    IconButton(onClick = viewModel::clearDueDate, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_due), tint = Blue, modifier = Modifier.size(20.dp))
+                    }
+                }
                 OutlinedButton(onClick = { DatePickerDialog(context, { _, year, month, day -> viewModel.setDueDate(LocalDate.of(year, month + 1, day)) }, date.year, date.monthValue - 1, date.dayOfMonth).show() }) { Text(if (state.dueAt == null) stringResource(R.string.choose) else formatShortDate(date)) }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1073,7 +1079,6 @@ private fun TaskEditorSheet(
                     TimePickerDialog(context, { _, hour, minute -> viewModel.setDueTime(hour, minute) }, time?.hour ?: 9, time?.minute ?: 0, true).show()
                 }) { Text(if (state.hasTime) formatShortTime(state.dueAt) else stringResource(R.string.optional)) }
             }
-            if (state.dueAt != null) TextButton(onClick = viewModel::clearDueDate) { Text(stringResource(R.string.clear_due)) }
             SettingSwitchRow(stringResource(R.string.priority), state.isPriority, { viewModel.updateEditor { value -> value.copy(isPriority = it) } }) { FlagIcon() }
             SettingSwitchRow(stringResource(R.string.repeat_task), state.recurrenceEnabled, viewModel::setRecurrenceEnabled) { Icon(Icons.Default.Repeat, contentDescription = null, tint = Blue) }
             AnimatedVisibility(state.recurrenceEnabled) {
