@@ -1075,7 +1075,7 @@ private fun TaskEditorSheet(
             }
             if (state.dueAt != null) TextButton(onClick = viewModel::clearDueDate) { Text(stringResource(R.string.clear_due)) }
             SettingSwitchRow(stringResource(R.string.priority), state.isPriority, { viewModel.updateEditor { value -> value.copy(isPriority = it) } }) { FlagIcon() }
-            SettingSwitchRow(stringResource(R.string.repeat_task), state.recurrenceEnabled, { viewModel.updateEditor { value -> value.copy(recurrenceEnabled = it) } }) { Icon(Icons.Default.Repeat, contentDescription = null, tint = Blue) }
+            SettingSwitchRow(stringResource(R.string.repeat_task), state.recurrenceEnabled, viewModel::setRecurrenceEnabled) { Icon(Icons.Default.Repeat, contentDescription = null, tint = Blue) }
             AnimatedVisibility(state.recurrenceEnabled) {
                 Column {
                     OutlinedTextField(value = state.recurrenceInterval, onValueChange = { value -> if (value.length <= 3 && value.all(Char::isDigit)) viewModel.updateEditor { it.copy(recurrenceInterval = value) } }, label = { Text(stringResource(R.string.interval)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.width(100.dp))

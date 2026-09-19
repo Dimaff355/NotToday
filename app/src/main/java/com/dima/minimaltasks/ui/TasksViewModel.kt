@@ -52,6 +52,8 @@ data class TaskEditorState(
     val recurrenceInterval: String,
     val recurrenceWeekdayMask: Int,
     val attachments: List<AttachmentEntity>,
+    /** True while [dueAt] is the date the editor put there itself (today) and nobody touched it. */
+    val dueDateAutoAssigned: Boolean = false,
     val removedAttachmentIds: Set<String> = emptySet(),
     val stagedAttachments: List<StagedAttachmentState> = emptyList(),
     val error: EditorError? = null,
@@ -84,12 +86,13 @@ class TasksViewModel(
 
     private fun openNewTaskInternal(prefilledDate: LocalDate?) {
         val id = UUID.randomUUID().toString()
+        val due = TaskEditorDefaults.newTaskDue(prefilledDate)
         _editor.value = TaskEditorState(
             taskId = id,
             sourceTask = null,
             title = "",
             description = "",
-            dueAt = prefilledDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
+            dueAt = due.millis,
             hasTime = false,
             isPriority = false,
             recurrenceEnabled = false,
@@ -97,6 +100,7 @@ class TasksViewModel(
             recurrenceInterval = "1",
             recurrenceWeekdayMask = 0,
             attachments = emptyList(),
+            dueDateAutoAssigned = due.autoAssigned,
         )
     }
 
@@ -138,7 +142,10 @@ class TasksViewModel(
     fun setDueDate(date: LocalDate) {
         updateEditor { state ->
             val time = if (state.hasTime) dueLocalTime(state.dueAt) else LocalTime.MIDNIGHT
-            state.copy(dueAt = date.atTime(time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli())
+            state.copy(
+                dueAt = date.atTime(time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                dueDateAutoAssigned = false,
+            )
         }
     }
 
@@ -148,11 +155,17 @@ class TasksViewModel(
             state.copy(
                 dueAt = date.atTime(hour, minute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 hasTime = true,
+                dueDateAutoAssigned = false,
             )
         }
     }
 
-    fun clearDueDate() = updateEditor { it.copy(dueAt = null, hasTime = false) }
+    fun clearDueDate() = updateEditor { it.copy(dueAt = null, hasTime = false, dueDateAutoAssigned = false) }
+
+    fun setRecurrenceEnabled(enabled: Boolean) {
+        val todayMillis = TaskEditorDefaults.todayStartMillis()
+        updateEditor { TaskEditorDefaults.applyRecurrenceToggle(it, enabled, todayMillis) }
+    }
 
     fun removeAttachment(attachmentId: String) {
         updateEditor { it.copy(removedAttachmentIds = it.removedAttachmentIds + attachmentId) }
