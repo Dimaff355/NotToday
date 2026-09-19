@@ -128,8 +128,8 @@
     <string name="reminder_body">到时间了：%1$s</string>
     <string name="reminder_complete">完成</string>
     <string name="reminder_snooze">延后10分钟</string>
-    <string name="welcome_title">欢迎</string>
-    <string name="welcome_subtitle">任务、提醒和附件都只保存在本机。无需网络，无需账号。</string>
+    <string name="welcome_title">你好</string>
+    <string name="welcome_subtitle">让我们开启权限，让提醒和通知正常工作。所有数据都会保存在你的设备上。</string>
     <string name="welcome_permissions">权限</string>
     <string name="welcome_permissions_hint">你可以随时在设置中更改。</string>
     <string name="welcome_notifications_title">通知</string>

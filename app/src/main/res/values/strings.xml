@@ -128,8 +128,8 @@
     <string name="reminder_body">Пора: %1$s</string>
     <string name="reminder_complete">Выполнено</string>
     <string name="reminder_snooze">Отложить на 10 минут</string>
-    <string name="welcome_title">Добро пожаловать</string>
-    <string name="welcome_subtitle">Задачи, напоминания и вложения хранятся только на устройстве. Без сети и аккаунтов.</string>
+    <string name="welcome_title">Привет</string>
+    <string name="welcome_subtitle">Давай включим разрешения, чтобы напоминания и уведомления работали хорошо. Вся информация будет храниться у тебя на устройстве.</string>
     <string name="welcome_permissions">Разрешения</string>
     <string name="welcome_permissions_hint">Их можно изменить в любой момент в настройках.</string>
     <string name="welcome_notifications_title">Уведомления</string>

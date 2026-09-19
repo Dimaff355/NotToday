@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
@@ -110,10 +111,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -752,17 +755,24 @@ private fun TodayScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                val today = LocalDate.now()
+                val locale = LocalLocale.current.platformLocale
                 Text(
-                    text = stringResource(R.string.today),
+                    text = remember(today, locale) { TaskFormatters.weekdayTitle(today, locale) },
                     color = MaterialTheme.colorScheme.onBackground,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                    fontSize = 43.sp,
-                    lineHeight = 46.sp,
+                    fontSize = 34.sp,
+                    lineHeight = 38.sp,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(formatTodayDate(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp, modifier = Modifier.padding(top = 2.dp))
+                Text(
+                    text = remember(today, locale) { TaskFormatters.longDate(today, locale) },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 15.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
             Row(
                 modifier = Modifier
@@ -784,11 +794,15 @@ private fun TodayScreen(
         ) {
             if (active.isEmpty()) {
                 item {
-                    Text(
-                        stringResource(if (completed.isEmpty()) R.string.no_tasks_today else R.string.no_active_tasks),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp),
-                    )
+                    if (completed.isEmpty()) {
+                        EmptyTasksPlaceholder(Modifier.fillParentMaxSize())
+                    } else {
+                        Text(
+                            stringResource(R.string.no_active_tasks),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp),
+                        )
+                    }
                 }
             } else {
                 items(active, key = TaskEntity::id) {
@@ -822,6 +836,29 @@ private fun TodayScreen(
                 }
             }
         }
+    }
+}
+
+/** Nothing to do yet: the illustration centres itself in the free space under the header. */
+@Composable
+private fun EmptyTasksPlaceholder(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.empty_tasks),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(240.dp),
+        )
+        Text(
+            text = stringResource(R.string.no_tasks_today),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 15.sp,
+            modifier = Modifier.padding(top = 18.dp),
+        )
     }
 }
 
@@ -1428,14 +1465,6 @@ private fun NavigationItem(icon: androidx.compose.ui.graphics.vector.ImageVector
 @Composable
 private fun PlaceholderScreen(titleRes: Int) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(titleRes), color = MaterialTheme.colorScheme.onBackground, fontSize = 24.sp) }
-}
-
-@Composable
-private fun formatTodayDate(): String {
-    val locale = LocalLocale.current.platformLocale
-    return remember(locale) {
-        java.time.format.DateTimeFormatter.ofPattern("EEE, d MMMM yyyy", locale).format(LocalDate.now())
-    }
 }
 
 @Composable

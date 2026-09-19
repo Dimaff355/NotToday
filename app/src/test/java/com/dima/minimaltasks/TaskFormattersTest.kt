@@ -81,4 +81,25 @@ class TaskFormattersTest {
 
         assertEquals(date.atStartOfDay(zone).toInstant().toEpochMilli(), result)
     }
+
+    @Test
+    fun weekdayHeadingIsCapitalisedInEveryLanguage() {
+        val date = LocalDate.of(2026, 9, 19)
+
+        assertEquals("Суббота", TaskFormatters.weekdayTitle(date, Locale("ru")))
+        assertEquals("Saturday", TaskFormatters.weekdayTitle(date, Locale.ENGLISH))
+        assertEquals("星期六", TaskFormatters.weekdayTitle(date, Locale.forLanguageTag("zh-CN")))
+    }
+
+    @Test
+    fun dateUnderTheHeadingCarriesNoWeekday() {
+        val date = LocalDate.of(2026, 9, 19)
+
+        // CLDR puts a narrow no-break space before "г."; the exact codepoint varies per JDK/ICU.
+        assertEquals("19 сентября 2026 г.", TaskFormatters.longDate(date, Locale("ru")).plainSpaces())
+        assertEquals("September 19, 2026", TaskFormatters.longDate(date, Locale.ENGLISH))
+        assertEquals("2026年9月19日", TaskFormatters.longDate(date, Locale.forLanguageTag("zh-CN")))
+    }
+
+    private fun String.plainSpaces() = replace('\u00A0', ' ').replace('\u202F', ' ')
 }

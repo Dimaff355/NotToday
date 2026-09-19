@@ -128,8 +128,8 @@
     <string name="reminder_body">Due: %1$s</string>
     <string name="reminder_complete">Complete</string>
     <string name="reminder_snooze">Snooze for 10 minutes</string>
-    <string name="welcome_title">Welcome</string>
-    <string name="welcome_subtitle">Tasks, reminders, and attachments stay on your device. No network, no accounts.</string>
+    <string name="welcome_title">Hi</string>
+    <string name="welcome_subtitle">Let\'s enable permissions so reminders and notifications work well. All your data stays on your device.</string>
     <string name="welcome_permissions">Permissions</string>
     <string name="welcome_permissions_hint">You can change these later in settings.</string>
     <string name="welcome_notifications_title">Notifications</string>
