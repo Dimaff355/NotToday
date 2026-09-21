@@ -106,14 +106,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
@@ -177,7 +177,7 @@ import java.util.Locale
 private val Blue = Color(0xFF2F80ED)
 private val Red = Color(0xFFEF4444)
 
-/** Confetti palette for the completion celebration; readable on both theme backgrounds. */
+/** Palette of the completion wash; soft enough to keep text readable on both themes. */
 private val CelebrationColors = listOf(
     Color(0xFFF4B942), // amber
     Color(0xFFF178B6), // pink
@@ -277,6 +277,7 @@ private fun MinimalTasksApp(
     val alarmAccuracy by reminderPermissionController.alarmAccuracy.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(0) }
     var backupOperationInProgress by remember { mutableStateOf(false) }
+    var celebrationEpoch by remember { mutableStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val snackbarController = remember(scope, snackbarHostState) { UndoSnackbarController(snackbarHostState, scope) }
@@ -293,6 +294,7 @@ private fun MinimalTasksApp(
         } else {
             val completed = viewModel.completeTask(task.id) != null
             if (completed) {
+                celebrationEpoch++
                 snackbarController.show(
                     message = context.getString(R.string.task_completed),
                     actionLabel = context.getString(R.string.undo),
@@ -351,7 +353,9 @@ private fun MinimalTasksApp(
         },
     ) { padding ->
         Surface(Modifier.fillMaxSize().padding(padding), color = MaterialTheme.colorScheme.background) {
-            when (selectedTab) {
+            Box(Modifier.fillMaxSize()) {
+                CelebrationWash(celebrationEpoch, Modifier.fillMaxSize())
+                when (selectedTab) {
                 0 -> TodayScreen(
                     tasks = tasks,
                     onAdd = viewModel::openNewTask,
@@ -385,6 +389,7 @@ private fun MinimalTasksApp(
                         scope.launch { snackbarHostState.showSnackbar(context.getString(messageRes)) }
                     },
                 )
+            }
             }
         }
     }
@@ -885,7 +890,6 @@ private fun TaskRow(
     var menuExpanded by remember { mutableStateOf(false) }
     var completionInProgress by remember(task.id) { mutableStateOf(false) }
     val completionProgress = remember(task.id) { Animatable(0f) }
-    val celebrationProgress = remember(task.id) { Animatable(0f) }
     val rowScope = rememberCoroutineScope()
     val feedbackView = LocalView.current
     val locale = LocalLocale.current.platformLocale
@@ -907,15 +911,7 @@ private fun TaskRow(
         }
     }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(76.dp)
-            .clickable(enabled = !completionInProgress) { onEdit(task.id) }
-            .drawWithContent {
-                drawContent()
-                drawCelebration(celebrationProgress.value)
-            }
-            .padding(horizontal = 24.dp),
+        modifier = Modifier.fillMaxWidth().height(76.dp).clickable(enabled = !completionInProgress) { onEdit(task.id) }.padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -936,7 +932,6 @@ private fun TaskRow(
                         completionInProgress = true
                         try {
                             completionProgress.snapTo(0f)
-                            celebrationProgress.snapTo(0f)
                             completionProgress.animateTo(
                                 targetValue = 1f,
                                 animationSpec = androidx.compose.animation.core.tween(
@@ -944,21 +939,11 @@ private fun TaskRow(
                                     easing = androidx.compose.animation.core.FastOutSlowInEasing,
                                 ),
                             )
-                            // The row leaves the list as soon as the database emits, so the
-                            // celebration has to play out before the completion is written.
-                            celebrationProgress.animateTo(
-                                targetValue = 1f,
-                                animationSpec = androidx.compose.animation.core.tween(
-                                    durationMillis = 380,
-                                    easing = androidx.compose.animation.core.LinearOutSlowInEasing,
-                                ),
-                            )
                             if (onToggleComplete(task)) {
                                 CompletionFeedback.play(feedbackView, completionFeedback)
                             }
                         } finally {
                             completionProgress.snapTo(0f)
-                            celebrationProgress.snapTo(0f)
                             completionInProgress = false
                         }
                     }
@@ -968,14 +953,7 @@ private fun TaskRow(
             Box(
                 modifier = Modifier
                     .size(37.dp)
-                    .scale(
-                        when {
-                            task.completed -> 1f
-                            completionInProgress -> 0.94f + completionProgress.value * 0.06f +
-                                0.15f * kotlin.math.sin(kotlin.math.PI * celebrationProgress.value).toFloat()
-                            else -> 0.94f
-                        }
-                    )
+                    .scale(if (task.completed) 1f else if (completionInProgress) 0.94f + completionProgress.value * 0.06f else 0.94f)
                     .clip(RoundedCornerShape(7.dp)),
             ) {
                 Canvas(Modifier.fillMaxSize()) {
@@ -1045,30 +1023,51 @@ private fun TaskRow(
     HorizontalDivider(modifier = Modifier.padding(start = 77.dp, end = 24.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
 }
 
+/** Start centres (x, y) and drift directions (dx, dy) of the wash spots, as size fractions. */
+private val WashSpots = listOf(
+    floatArrayOf(0.15f, 0.20f, 0.10f, 0.05f),
+    floatArrayOf(0.85f, 0.25f, -0.12f, 0.04f),
+    floatArrayOf(0.25f, 0.80f, 0.08f, -0.08f),
+    floatArrayOf(0.80f, 0.75f, -0.10f, -0.06f),
+)
+
 /**
- * Confetti dots bursting out of the checkbox while a completion is being celebrated.
- * Decorative only, drawn on top of the row; every dot is invisible at progress 0 and 1.
+ * Soft colour wash that ripples over the app background for two seconds after a task is
+ * completed. Drawn behind the screen content, purely decorative, never blocks input.
+ * Every `trigger` increment restarts the animation from the beginning.
  */
-private fun DrawScope.drawCelebration(progress: Float) {
-    if (progress <= 0f || progress >= 1f) return
-    // 24.dp row padding + half of the 48.dp checkbox touch target.
-    val checkboxCenter = Offset(x = 48.dp.toPx(), y = size.height / 2f)
-    val spread = 1f - (1f - progress).let { value -> value * value * value }
-    repeat(12) { index ->
-        val jitterDegrees = (((index * 53) % 17) - 8) * 2.4f
-        val angle = Math.toRadians(index * 30.0 + jitterDegrees)
-        val distance = (14 + (index % 5) * 4).dp.toPx() * spread
-        drawCircle(
-            color = CelebrationColors[index % CelebrationColors.size].copy(
-                alpha = minOf(progress * 6f, 1f) * (1f - progress),
-            ),
-            radius = (2.4f - (index % 3) * 0.4f).dp.toPx() * (1f - 0.4f * progress),
-            center = Offset(
-                x = checkboxCenter.x + kotlin.math.cos(angle).toFloat() * distance,
-                y = checkboxCenter.y + kotlin.math.sin(angle).toFloat() * distance +
-                    5.dp.toPx() * progress * progress,
-            ),
-        )
+@Composable
+private fun CelebrationWash(trigger: Int, modifier: Modifier = Modifier) {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(trigger) {
+        if (trigger > 0) {
+            progress.snapTo(0f)
+            progress.animateTo(targetValue = 1f, animationSpec = androidx.compose.animation.core.tween(durationMillis = 2000))
+        }
+    }
+    val lightBackground = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    Canvas(modifier) {
+        val p = progress.value
+        if (p <= 0f || p >= 1f) return@Canvas
+        val envelope = kotlin.math.sin(kotlin.math.PI * p).toFloat()
+        val alpha = (if (lightBackground) 0.16f else 0.24f) * envelope
+        val drift = 1f - (1f - p).let { it * it }
+        WashSpots.forEachIndexed { index, spot ->
+            val center = Offset(
+                x = size.width * (spot[0] + spot[2] * drift),
+                y = size.height * (spot[1] + spot[3] * drift),
+            )
+            val radius = size.minDimension * 0.55f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(CelebrationColors[index % CelebrationColors.size].copy(alpha = alpha), Color.Transparent),
+                    center = center,
+                    radius = radius,
+                ),
+                radius = radius,
+                center = center,
+            )
+        }
     }
 }
 

@@ -24,8 +24,8 @@ android {
         applicationId = "com.dima.minimaltasks"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
-        versionName = "1.2.30"
+        versionCode = 8
+        versionName = "1.2.31"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
