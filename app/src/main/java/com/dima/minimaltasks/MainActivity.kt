@@ -859,16 +859,15 @@ private fun TodayScreen(
                 }
             }
             if (sections.activeCount == 0) {
+                val nothingAtAll = sections.completed.isEmpty()
                 item(key = "empty") {
-                    if (sections.completed.isEmpty()) {
-                        EmptyTasksPlaceholder(Modifier.fillParentMaxSize())
-                    } else {
-                        Text(
-                            stringResource(R.string.no_active_tasks),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp),
-                        )
-                    }
+                    EmptyTasksPlaceholder(
+                        caption = stringResource(if (nothingAtAll) R.string.no_tasks_today else R.string.no_active_tasks),
+                        // With nothing at all the illustration owns the free space under the
+                        // header; with done tasks below it keeps a fixed height so the
+                        // collapsed «Выполнено: N» row stays on screen.
+                        modifier = if (nothingAtAll) Modifier.fillParentMaxSize() else Modifier.fillMaxWidth().height(300.dp),
+                    )
                 }
             } else if (sections.today.isNotEmpty()) {
                 // No header here: the screen heading already says «today», and the overdue
@@ -1038,9 +1037,9 @@ private fun SwipeHintRow(onDismiss: () -> Unit) {
     }
 }
 
-/** Nothing to do yet: the illustration centres itself in the free space under the header. */
+/** Nothing to do: the sleeping list illustration above [caption], centred in the given space. */
 @Composable
-private fun EmptyTasksPlaceholder(modifier: Modifier = Modifier) {
+private fun EmptyTasksPlaceholder(caption: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1053,7 +1052,7 @@ private fun EmptyTasksPlaceholder(modifier: Modifier = Modifier) {
             modifier = Modifier.size(240.dp),
         )
         Text(
-            text = stringResource(R.string.no_tasks_today),
+            text = caption,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 15.sp,
             modifier = Modifier.padding(top = 18.dp),
