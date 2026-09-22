@@ -7,4 +7,6 @@ data class SettingsState(
     val notificationsEnabled: Boolean = true,
     val notificationPermissionAsked: Boolean = false,
     val welcomeCompleted: Boolean = false,
+    /** One-time «swipe a task left to move it to tomorrow» hint has been seen. */
+    val swipeHintDismissed: Boolean = false,
 )

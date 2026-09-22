@@ -2,6 +2,18 @@
 <resources>
     <string name="app_name">Not today</string>
     <string name="today">Today</string>
+    <string name="not_today">Not today</string>
+    <string name="tomorrow">Tomorrow</string>
+    <string name="overdue_count">Overdue: %1$d</string>
+    <string name="scheduled">Scheduled</string>
+    <string name="someday">Someday</string>
+    <string name="no_later_tasks">No tasks for later</string>
+    <string name="moved_to_tomorrow">Okay, tomorrow</string>
+    <string name="moved_to_today">Moved to today</string>
+    <string name="take_today">Move to today</string>
+    <string name="choose_date">Choose date</string>
+    <string name="swipe_hint">Swipe a task left to move it to tomorrow</string>
+    <string name="dismiss_hint">Dismiss hint</string>
     <string name="date_today">Thu, April 24, 2025</string>
     <string name="add_task">Add task</string>
     <string name="task_finish_design">Finish design presentation</string>

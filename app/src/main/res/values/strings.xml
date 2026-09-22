@@ -2,6 +2,18 @@
 <resources>
     <string name="app_name">Не сегодня</string>
     <string name="today">Сегодня</string>
+    <string name="not_today">Не сегодня</string>
+    <string name="tomorrow">Завтра</string>
+    <string name="overdue_count">Просрочено: %1$d</string>
+    <string name="scheduled">Запланировано</string>
+    <string name="someday">Когда-нибудь</string>
+    <string name="no_later_tasks">Задач на будущее нет</string>
+    <string name="moved_to_tomorrow">Ладно, завтра</string>
+    <string name="moved_to_today">Перенесено на сегодня</string>
+    <string name="take_today">Взять на сегодня</string>
+    <string name="choose_date">Выбрать дату</string>
+    <string name="swipe_hint">Смахните задачу влево, чтобы перенести её на завтра</string>
+    <string name="dismiss_hint">Скрыть подсказку</string>
     <string name="date_today">Чт, 24 апреля 2025</string>
     <string name="add_task">Добавить задачу</string>
     <string name="task_finish_design">Закончить презентацию</string>

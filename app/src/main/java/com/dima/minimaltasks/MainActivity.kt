@@ -66,6 +66,9 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SwipeLeft
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,6 +79,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -88,12 +92,14 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -148,9 +154,11 @@ import com.dima.minimaltasks.ui.CalendarDotKind
 import com.dima.minimaltasks.ui.CalendarMonthModel
 import com.dima.minimaltasks.ui.CalendarTaskGrouping
 import com.dima.minimaltasks.ui.CompletionFeedback
+import com.dima.minimaltasks.ui.CompletionFeedbackDecision
 import com.dima.minimaltasks.ui.CompletionFeedbackPolicy
 import com.dima.minimaltasks.ui.OnboardingModel
 import com.dima.minimaltasks.ui.OnboardingPermission
+import com.dima.minimaltasks.ui.TaskListSections
 import com.dima.minimaltasks.ui.TasksViewModel
 import com.dima.minimaltasks.ui.TasksViewModelFactory
 import com.dima.minimaltasks.data.settings.SettingsRepository
@@ -330,6 +338,33 @@ private fun MinimalTasksApp(
             }
         }
     }
+    val handlePostponeToTomorrow: (TaskEntity) -> Unit = { task ->
+        scope.launch {
+            if (viewModel.moveTaskDate(task, LocalDate.now().plusDays(1))) {
+                settingsRepository.markSwipeHintDismissed()
+                snackbarController.show(
+                    message = context.getString(R.string.moved_to_tomorrow),
+                    actionLabel = context.getString(R.string.undo),
+                    onAction = { viewModel.restoreTask(task) },
+                )
+            }
+        }
+    }
+    val handleTakeToday: (TaskEntity) -> Unit = { task ->
+        scope.launch {
+            if (viewModel.moveTaskDate(task, LocalDate.now())) {
+                snackbarController.show(
+                    message = context.getString(R.string.moved_to_today),
+                    actionLabel = context.getString(R.string.undo),
+                    onAction = { viewModel.restoreTask(task) },
+                )
+            }
+        }
+    }
+    val handleSetDate: (TaskEntity, LocalDate) -> Unit = { task, date ->
+        scope.launch { viewModel.moveTaskDate(task, date) }
+    }
+    val handleDismissSwipeHint: () -> Unit = { scope.launch { settingsRepository.markSwipeHintDismissed() } }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -365,8 +400,23 @@ private fun MinimalTasksApp(
                     onTogglePriority = { task -> scope.launch { viewModel.togglePriority(task) } },
                     onDelete = handleDelete,
                     onDeleteCompleted = handleDeleteCompleted,
+                    onPostponeToTomorrow = handlePostponeToTomorrow,
+                    onSetDate = handleSetDate,
+                    showSwipeHint = !settings.swipeHintDismissed,
+                    onDismissSwipeHint = handleDismissSwipeHint,
                 )
-                1 -> CalendarScreen(
+                1 -> NotTodayScreen(
+                    tasks = tasks,
+                    onEdit = viewModel::openExistingTask,
+                    onToggleComplete = handleToggleComplete,
+                    completionFeedback = CompletionFeedbackPolicy.from(settings),
+                    onTogglePriority = { task -> scope.launch { viewModel.togglePriority(task) } },
+                    onDelete = handleDelete,
+                    onDeleteCompleted = handleDeleteCompleted,
+                    onTakeToday = handleTakeToday,
+                    onSetDate = handleSetDate,
+                )
+                2 -> CalendarScreen(
                     viewModel = viewModel,
                     onEdit = viewModel::openExistingTask,
                     onToggleComplete = handleToggleComplete,
@@ -374,6 +424,7 @@ private fun MinimalTasksApp(
                     onTogglePriority = { task -> scope.launch { viewModel.togglePriority(task) } },
                     onDelete = handleDelete,
                     onDeleteCompleted = handleDeleteCompleted,
+                    onSetDate = handleSetDate,
                     onAdd = { date -> viewModel.openNewTaskForDate(date) },
                 )
                 else -> SettingsScreen(
@@ -533,10 +584,11 @@ private fun CalendarScreen(
     onAdd: (LocalDate) -> Unit,
     onEdit: (String) -> Unit,
     onToggleComplete: suspend (TaskEntity) -> Boolean,
-    completionFeedback: com.dima.minimaltasks.ui.CompletionFeedbackDecision,
+    completionFeedback: CompletionFeedbackDecision,
     onTogglePriority: (TaskEntity) -> Unit,
     onDelete: (String) -> Unit,
     onDeleteCompleted: (List<String>) -> Unit,
+    onSetDate: (TaskEntity, LocalDate) -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales.get(0)
     val zoneId = ZoneId.systemDefault()
@@ -654,32 +706,19 @@ private fun CalendarScreen(
                 }
             } else {
                 items(active, key = TaskEntity::id) {
-                    task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete)
+                    task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate)
                 }
                 if (completed.isNotEmpty()) {
                     item {
-                        Row(
-                            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showCompleted = !showCompleted }.padding(horizontal = 24.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(stringResource(R.string.completed_count, completed.size), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                            Spacer(Modifier.weight(1f))
-                            IconButton(onClick = { onDeleteCompleted(completed.map(TaskEntity::id)) }) {
-                                Icon(
-                                    Icons.Default.DeleteOutline,
-                                    contentDescription = stringResource(R.string.delete_all),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Icon(
-                                imageVector = if (showCompleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = stringResource(if (showCompleted) R.string.hide_completed else R.string.show_completed),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        CompletedHeader(
+                            completedCount = completed.size,
+                            expanded = showCompleted,
+                            onToggle = { showCompleted = !showCompleted },
+                            onDeleteCompleted = { onDeleteCompleted(completed.map(TaskEntity::id)) },
+                        )
                     }
                     if (showCompleted) items(completed, key = TaskEntity::id) {
-                        task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete)
+                        task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate)
                     }
                 }
             }
@@ -756,13 +795,18 @@ private fun TodayScreen(
     onAdd: () -> Unit,
     onEdit: (String) -> Unit,
     onToggleComplete: suspend (TaskEntity) -> Boolean,
-    completionFeedback: com.dima.minimaltasks.ui.CompletionFeedbackDecision,
+    completionFeedback: CompletionFeedbackDecision,
     onTogglePriority: (TaskEntity) -> Unit,
     onDelete: (String) -> Unit,
     onDeleteCompleted: (List<String>) -> Unit,
+    onPostponeToTomorrow: (TaskEntity) -> Unit,
+    onSetDate: (TaskEntity, LocalDate) -> Unit,
+    showSwipeHint: Boolean,
+    onDismissSwipeHint: () -> Unit,
 ) {
-    val active = tasks.filterNot(TaskEntity::completed)
-    val completed = tasks.filter(TaskEntity::completed)
+    val today = LocalDate.now()
+    val zoneId = ZoneId.systemDefault()
+    val sections = remember(tasks, today, zoneId) { TaskListSections.today(tasks, today, zoneId) }
     var showCompleted by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -771,7 +815,6 @@ private fun TodayScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                val today = LocalDate.now()
                 val locale = LocalLocale.current.platformLocale
                 Text(
                     text = remember(today, locale) { TaskFormatters.weekdayTitle(today, locale) },
@@ -804,13 +847,20 @@ private fun TodayScreen(
                 Text(stringResource(R.string.add_task), color = Blue, fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
             }
         }
+        if (showSwipeHint) SwipeHintRow(onDismissSwipeHint)
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = 8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 8.dp),
         ) {
-            if (active.isEmpty()) {
-                item {
-                    if (completed.isEmpty()) {
+            if (sections.overdue.isNotEmpty()) {
+                item(key = "overdue-header") { SectionHeader(stringResource(R.string.overdue_count, sections.overdue.size)) }
+                items(sections.overdue, key = TaskEntity::id) {
+                    task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate, onPostponeToTomorrow = onPostponeToTomorrow)
+                }
+            }
+            if (sections.activeCount == 0) {
+                item(key = "empty") {
+                    if (sections.completed.isEmpty()) {
                         EmptyTasksPlaceholder(Modifier.fillParentMaxSize())
                     } else {
                         Text(
@@ -820,38 +870,171 @@ private fun TodayScreen(
                         )
                     }
                 }
-            } else {
-                items(active, key = TaskEntity::id) {
-                    task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete)
+            } else if (sections.today.isNotEmpty()) {
+                // No header here: the screen heading already says «today», and the overdue
+                // block above is delimited by its own header.
+                items(sections.today, key = TaskEntity::id) {
+                    task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate, onPostponeToTomorrow = onPostponeToTomorrow)
                 }
             }
-            if (completed.isNotEmpty()) {
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showCompleted = !showCompleted }.padding(horizontal = 24.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(stringResource(R.string.completed_count, completed.size), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                        Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { onDeleteCompleted(completed.map(TaskEntity::id)) }) {
-                            Icon(
-                                Icons.Default.DeleteOutline,
-                                contentDescription = stringResource(R.string.delete_all),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Icon(
-                            imageVector = if (showCompleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = stringResource(if (showCompleted) R.string.hide_completed else R.string.show_completed),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+            if (sections.completed.isNotEmpty()) {
+                item(key = "completed-header") {
+                    CompletedHeader(
+                        completedCount = sections.completed.size,
+                        expanded = showCompleted,
+                        onToggle = { showCompleted = !showCompleted },
+                        onDeleteCompleted = { onDeleteCompleted(sections.completed.map(TaskEntity::id)) },
+                    )
                 }
-                if (showCompleted) items(completed, key = TaskEntity::id) {
-                    task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete)
+                if (showCompleted) items(sections.completed, key = TaskEntity::id) {
+                    task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NotTodayScreen(
+    tasks: List<TaskEntity>,
+    onEdit: (String) -> Unit,
+    onToggleComplete: suspend (TaskEntity) -> Boolean,
+    completionFeedback: CompletionFeedbackDecision,
+    onTogglePriority: (TaskEntity) -> Unit,
+    onDelete: (String) -> Unit,
+    onDeleteCompleted: (List<String>) -> Unit,
+    onTakeToday: (TaskEntity) -> Unit,
+    onSetDate: (TaskEntity, LocalDate) -> Unit,
+) {
+    val today = LocalDate.now()
+    val zoneId = ZoneId.systemDefault()
+    val sections = remember(tasks, today, zoneId) { TaskListSections.later(tasks, today, zoneId) }
+    var showCompleted by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Text(
+            text = stringResource(R.string.not_today),
+            color = MaterialTheme.colorScheme.onBackground,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+            fontSize = 26.sp,
+            lineHeight = 30.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(start = 24.dp, top = 28.dp, end = 20.dp, bottom = 4.dp),
+        )
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 8.dp),
+        ) {
+            if (sections.scheduled.isEmpty() && sections.someday.isEmpty() && sections.completed.isEmpty()) {
+                item(key = "empty") {
+                    Text(
+                        stringResource(R.string.no_later_tasks),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp),
+                    )
+                }
+            } else {
+                if (sections.scheduled.isNotEmpty()) {
+                    item(key = "scheduled-header") { SectionHeader(stringResource(R.string.scheduled)) }
+                    items(sections.scheduled, key = TaskEntity::id) {
+                        task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate, onTakeToday = onTakeToday)
+                    }
+                }
+                if (sections.someday.isNotEmpty()) {
+                    item(key = "someday-header") { SectionHeader(stringResource(R.string.someday)) }
+                    items(sections.someday, key = TaskEntity::id) {
+                        task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate, onTakeToday = onTakeToday)
+                    }
+                }
+                if (sections.completed.isNotEmpty()) {
+                    item(key = "completed-header") {
+                        CompletedHeader(
+                            completedCount = sections.completed.size,
+                            expanded = showCompleted,
+                            onToggle = { showCompleted = !showCompleted },
+                            onDeleteCompleted = { onDeleteCompleted(sections.completed.map(TaskEntity::id)) },
+                        )
+                    }
+                    if (showCompleted) items(sections.completed, key = TaskEntity::id) {
+                        task -> TaskRow(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+    )
+}
+
+/** Collapsible «Completed: N» row shared by all three list tabs, with the bulk-delete button. */
+@Composable
+private fun CompletedHeader(
+    completedCount: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onDeleteCompleted: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onToggle).padding(horizontal = 24.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.completed_count, completedCount), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onDeleteCompleted) {
+            Icon(
+                Icons.Default.DeleteOutline,
+                contentDescription = stringResource(R.string.delete_all),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(
+            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = stringResource(if (expanded) R.string.hide_completed else R.string.show_completed),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** One-time nudge about the swipe-to-tomorrow gesture; gone after the first swipe or tap on ✕. */
+@Composable
+private fun SwipeHintRow(onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .padding(start = 12.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.SwipeLeft, contentDescription = null, tint = Blue, modifier = Modifier.size(18.dp))
+        Text(
+            text = stringResource(R.string.swipe_hint),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+            lineHeight = 17.sp,
+            modifier = Modifier.weight(1f).padding(start = 10.dp),
+        )
+        Icon(
+            Icons.Default.Close,
+            contentDescription = stringResource(R.string.dismiss_hint),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onDismiss)
+                .padding(8.dp),
+        )
     }
 }
 
@@ -878,15 +1061,100 @@ private fun EmptyTasksPlaceholder(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * A task line. When [onPostponeToTomorrow] is set (the «Сегодня» tab) an active row can be
+ * swiped left to move the task to tomorrow; [onTakeToday] adds a «move to today» menu action
+ * for the «Не сегодня» tab. The «⋯» menu sits on the detail line so the title keeps full width.
+ */
 @Composable
 private fun TaskRow(
     task: TaskEntity,
     onEdit: (String) -> Unit,
     onToggleComplete: suspend (TaskEntity) -> Boolean,
-    completionFeedback: com.dima.minimaltasks.ui.CompletionFeedbackDecision,
+    completionFeedback: CompletionFeedbackDecision,
     onTogglePriority: (TaskEntity) -> Unit,
     onDelete: (String) -> Unit,
+    onSetDate: (TaskEntity, LocalDate) -> Unit,
+    onPostponeToTomorrow: ((TaskEntity) -> Unit)? = null,
+    onTakeToday: ((TaskEntity) -> Unit)? = null,
 ) {
+    if (onPostponeToTomorrow != null && !task.completed) {
+        val view = LocalView.current
+        val dismissState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value == SwipeToDismissBoxValue.EndToStart) {
+                    CompletionFeedback.swipeHaptic(view, completionFeedback)
+                    onPostponeToTomorrow(task)
+                    true
+                } else {
+                    false
+                }
+            },
+        )
+        // The state is saveable per list key: a task brought back by «Отменить» would restore
+        // as already dismissed and render as an empty «Завтра» row. Settle it back at once —
+        // the row leaves the list on its own as soon as the database answers.
+        LaunchedEffect(dismissState.currentValue) {
+            if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+            }
+        }
+        SwipeToDismissBox(
+            state = dismissState,
+            enableDismissFromStartToEnd = false,
+            backgroundContent = { TomorrowSwipeBackground() },
+        ) {
+            TaskRowContent(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate, onTakeToday)
+        }
+    } else {
+        TaskRowContent(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate, onTakeToday)
+    }
+}
+
+/** What the row reveals when swiped left: a calm «tomorrow» target, no destructive styling. */
+@Composable
+private fun TomorrowSwipeBackground() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Blue.copy(alpha = 0.10f)),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(stringResource(R.string.tomorrow), color = Blue, fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+            Spacer(Modifier.width(6.dp))
+            Icon(Icons.Default.SwipeLeft, contentDescription = null, tint = Blue, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TaskRowContent(
+    task: TaskEntity,
+    onEdit: (String) -> Unit,
+    onToggleComplete: suspend (TaskEntity) -> Boolean,
+    completionFeedback: CompletionFeedbackDecision,
+    onTogglePriority: (TaskEntity) -> Unit,
+    onDelete: (String) -> Unit,
+    onSetDate: (TaskEntity, LocalDate) -> Unit,
+    onTakeToday: ((TaskEntity) -> Unit)?,
+) {
+    val context = LocalContext.current
+
+    fun showDatePicker() {
+        val initial = task.dueAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() } ?: LocalDate.now()
+        // Platform dialog: needs the Activity context from the composition, not application.
+        DatePickerDialog(
+            context,
+            { _, year, month, day -> onSetDate(task, LocalDate.of(year, month + 1, day)) },
+            initial.year,
+            initial.monthValue - 1,
+            initial.dayOfMonth,
+        ).show()
+    }
+
     var menuExpanded by remember { mutableStateOf(false) }
     var completionInProgress by remember(task.id) { mutableStateOf(false) }
     val completionProgress = remember(task.id) { Animatable(0f) }
@@ -911,7 +1179,11 @@ private fun TaskRow(
         }
     }
     Row(
-        modifier = Modifier.fillMaxWidth().height(76.dp).clickable(enabled = !completionInProgress) { onEdit(task.id) }.padding(horizontal = 24.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 62.dp)
+            .clickable(enabled = !completionInProgress) { onEdit(task.id) }
+            .padding(horizontal = 24.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -929,6 +1201,8 @@ private fun TaskRow(
                             onToggleComplete(task)
                             return@launch
                         }
+                        // The haptic belongs to the tap itself, in sync with the fill animation.
+                        CompletionFeedback.completionHaptic(feedbackView, completionFeedback)
                         completionInProgress = true
                         try {
                             completionProgress.snapTo(0f)
@@ -940,7 +1214,7 @@ private fun TaskRow(
                                 ),
                             )
                             if (onToggleComplete(task)) {
-                                CompletionFeedback.play(feedbackView, completionFeedback)
+                                CompletionFeedback.play(completionFeedback)
                             }
                         } finally {
                             completionProgress.snapTo(0f)
@@ -989,38 +1263,100 @@ private fun TaskRow(
             }
         }
         Column(Modifier.weight(1f).padding(start = 16.dp)) {
-            Text(
-                text = task.title,
-                color = if (task.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
-                fontSize = 17.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
-            )
-            if (detail.isNotEmpty()) Text(detail, color = if (due?.overdue == true && !task.completed) Red else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-        }
-        if (task.isPriority) {
-            IconButton(
-                enabled = !completionInProgress,
-                onClick = { onTogglePriority(task) },
-            ) {
-                Box(
-                    Modifier.semantics {
-                        contentDescription = removePriorityDescription
-                    },
-                ) { FlagIcon() }
-            }
-        }
-        Box {
-            IconButton(enabled = !completionInProgress, onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreHoriz, contentDescription = stringResource(R.string.more_actions), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
-            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.edit)) }, onClick = { menuExpanded = false; onEdit(task.id) }, leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) })
-                DropdownMenuItem(text = { Text(if (task.isPriority) stringResource(R.string.remove_priority) else stringResource(R.string.add_priority)) }, onClick = { menuExpanded = false; onTogglePriority(task) })
-                DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menuExpanded = false; onDelete(task.id) }, leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) })
+            val titleColor = if (task.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground
+            val textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None
+            // 48-dp minimum touch targets would inflate the detail line; compact icons fit it.
+            CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
+                if (detail.isEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = task.title,
+                            color = titleColor,
+                            fontSize = 17.sp,
+                            lineHeight = 21.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textDecoration = textDecoration,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (task.isPriority) PriorityFlagButton(task, onTogglePriority, completionInProgress, removePriorityDescription)
+                        TaskMenuButton(task, menuExpanded, { menuExpanded = it }, onEdit, onTogglePriority, onDelete, ::showDatePicker, onTakeToday, completionInProgress)
+                    }
+                } else {
+                    Text(
+                        text = task.title,
+                        color = titleColor,
+                        fontSize = 17.sp,
+                        lineHeight = 21.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textDecoration = textDecoration,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                        Text(
+                            text = detail,
+                            color = if (due?.overdue == true && !task.completed) Red else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (task.isPriority) PriorityFlagButton(task, onTogglePriority, completionInProgress, removePriorityDescription)
+                        TaskMenuButton(task, menuExpanded, { menuExpanded = it }, onEdit, onTogglePriority, onDelete, ::showDatePicker, onTakeToday, completionInProgress)
+                    }
+                }
             }
         }
     }
     HorizontalDivider(modifier = Modifier.padding(start = 77.dp, end = 24.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+}
+
+@Composable
+private fun PriorityFlagButton(
+    task: TaskEntity,
+    onTogglePriority: (TaskEntity) -> Unit,
+    completionInProgress: Boolean,
+    description: String,
+) {
+    IconButton(
+        enabled = !completionInProgress,
+        onClick = { onTogglePriority(task) },
+        modifier = Modifier
+            .size(34.dp)
+            .semantics { contentDescription = description },
+    ) { FlagIcon(scale = 0.72f) }
+}
+
+@Composable
+private fun TaskMenuButton(
+    task: TaskEntity,
+    menuExpanded: Boolean,
+    onMenuExpandedChange: (Boolean) -> Unit,
+    onEdit: (String) -> Unit,
+    onTogglePriority: (TaskEntity) -> Unit,
+    onDelete: (String) -> Unit,
+    onChooseDate: () -> Unit,
+    onTakeToday: ((TaskEntity) -> Unit)?,
+    completionInProgress: Boolean,
+) {
+    Box {
+        IconButton(
+            enabled = !completionInProgress,
+            onClick = { onMenuExpandedChange(true) },
+            modifier = Modifier.size(34.dp),
+        ) {
+            Icon(Icons.Default.MoreHoriz, contentDescription = stringResource(R.string.more_actions), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { onMenuExpandedChange(false) }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.edit)) }, onClick = { onMenuExpandedChange(false); onEdit(task.id) }, leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) })
+            DropdownMenuItem(text = { Text(stringResource(R.string.choose_date)) }, onClick = { onMenuExpandedChange(false); onChooseDate() }, leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) })
+            if (onTakeToday != null) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.take_today)) }, onClick = { onMenuExpandedChange(false); onTakeToday(task) }, leadingIcon = { Icon(Icons.Default.Today, contentDescription = null) })
+            }
+            DropdownMenuItem(text = { Text(if (task.isPriority) stringResource(R.string.remove_priority) else stringResource(R.string.add_priority)) }, onClick = { onMenuExpandedChange(false); onTogglePriority(task) })
+            DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { onMenuExpandedChange(false); onDelete(task.id) }, leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) })
+        }
+    }
 }
 
 /** Start centres (x, y) and drift directions (dx, dy) of the wash spots, as size fractions. */
@@ -1479,8 +1815,8 @@ private fun openAttachment(context: Context, attachment: AttachmentEntity) {
 }
 
 @Composable
-private fun FlagIcon() {
-    Canvas(modifier = Modifier.size(width = 23.dp, height = 28.dp)) {
+private fun FlagIcon(scale: Float = 1f) {
+    Canvas(modifier = Modifier.size(width = 23.dp, height = 28.dp).scale(scale)) {
         val poleX = 4.dp.toPx()
         drawLine(Red, Offset(poleX, 4.dp.toPx()), Offset(poleX, 25.dp.toPx()), strokeWidth = 2.dp.toPx())
         val flag = Path().apply { moveTo(poleX, 4.dp.toPx()); lineTo(20.dp.toPx(), 4.dp.toPx()); lineTo(20.dp.toPx(), 16.dp.toPx()); lineTo(poleX, 16.dp.toPx()); close() }
@@ -1491,17 +1827,32 @@ private fun FlagIcon() {
 @Composable
 private fun BottomNavigation(selectedTab: Int, enabled: Boolean, onSelected: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().navigationBarsPadding().height(72.dp).background(MaterialTheme.colorScheme.surface), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-        NavigationItem(Icons.Default.Home, stringResource(R.string.today), selectedTab == 0, enabled) { onSelected(0) }
-        NavigationItem(Icons.Default.CalendarMonth, stringResource(R.string.calendar), selectedTab == 1, enabled) { onSelected(1) }
-        NavigationItem(Icons.Default.MoreHoriz, stringResource(R.string.more), selectedTab == 2, enabled) { onSelected(2) }
+        NavigationItem(Icons.Default.Home, stringResource(R.string.today), selectedTab == 0, enabled, Modifier.weight(1f)) { onSelected(0) }
+        NavigationItem(Icons.Default.Update, stringResource(R.string.not_today), selectedTab == 1, enabled, Modifier.weight(1f)) { onSelected(1) }
+        NavigationItem(Icons.Default.CalendarMonth, stringResource(R.string.calendar), selectedTab == 2, enabled, Modifier.weight(1f)) { onSelected(2) }
+        NavigationItem(Icons.Default.MoreHoriz, stringResource(R.string.more), selectedTab == 3, enabled, Modifier.weight(1f)) { onSelected(3) }
     }
 }
 
 @Composable
-private fun NavigationItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Column(Modifier.width(96.dp).clip(RoundedCornerShape(18.dp)).clickable(enabled = enabled, onClick = onClick).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+private fun NavigationItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(enabled = enabled, onClick = onClick).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(icon, contentDescription = null, tint = if (selected) Blue else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-        Text(label, color = if (selected) Blue else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+        Text(
+            label,
+            color = if (selected) Blue else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp, start = 2.dp, end = 2.dp),
+        )
     }
 }
 

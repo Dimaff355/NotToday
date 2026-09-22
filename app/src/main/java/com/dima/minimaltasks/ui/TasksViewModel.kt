@@ -324,6 +324,25 @@ class TasksViewModel(
         repository.updateTask(task.copy(isPriority = !task.isPriority, updatedAt = System.currentTimeMillis()))
     }
 
+    /**
+     * Moves a task to another date, keeping the time of day if the task has one. Returns false
+     * when nothing changed or the row disappeared. Reminders are re-planned for the new due time.
+     */
+    suspend fun moveTaskDate(task: TaskEntity, date: LocalDate): Boolean {
+        val time = if (task.dueHasTime) dueLocalTime(task.dueAt) else LocalTime.MIDNIGHT
+        val newDueAt = date.atTime(time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        if (newDueAt == task.dueAt) return false
+        return writeTask(task.copy(dueAt = newDueAt, updatedAt = System.currentTimeMillis()))
+    }
+
+    /** Writes a snapshot back (undo of a date move) and re-plans its reminder. */
+    suspend fun restoreTask(task: TaskEntity): Boolean = writeTask(task.copy(updatedAt = System.currentTimeMillis()))
+
+    private suspend fun writeTask(task: TaskEntity): Boolean = runCatching {
+        repository.updateTask(task)
+        reminderCoordinator.onTaskSaved(task)
+    }.isSuccess
+
     /** Deletes every task that still exists and returns the ids that were actually removed. */
     suspend fun deleteTasks(taskIds: List<String>): List<String> {
         val deleted = mutableListOf<String>()

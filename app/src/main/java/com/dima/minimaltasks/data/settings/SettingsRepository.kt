@@ -23,6 +23,7 @@ class SettingsRepository(private val context: Context) {
         val notificationsEnabled = booleanPreferencesKey("notifications_enabled")
         val notificationPermissionAsked = booleanPreferencesKey("notification_permission_asked")
         val welcomeCompleted = booleanPreferencesKey("welcome_completed")
+        val swipeHintDismissed = booleanPreferencesKey("swipe_hint_dismissed")
     }
 
     val state: Flow<SettingsState> = context.settingsDataStore.data
@@ -37,6 +38,7 @@ class SettingsRepository(private val context: Context) {
                 notificationsEnabled = preferences[Keys.notificationsEnabled] ?: true,
                 notificationPermissionAsked = preferences[Keys.notificationPermissionAsked] ?: false,
                 welcomeCompleted = preferences[Keys.welcomeCompleted] ?: false,
+                swipeHintDismissed = preferences[Keys.swipeHintDismissed] ?: false,
             )
         }
 
@@ -62,6 +64,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun markWelcomeCompleted() = context.settingsDataStore.edit {
         it[Keys.welcomeCompleted] = true
+    }
+
+    suspend fun markSwipeHintDismissed() = context.settingsDataStore.edit {
+        it[Keys.swipeHintDismissed] = true
     }
 
     suspend fun replace(value: SettingsState) = context.settingsDataStore.edit {

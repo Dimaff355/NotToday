@@ -2,6 +2,18 @@
 <resources>
     <string name="app_name">不是今天</string>
     <string name="today">今天</string>
+    <string name="not_today">不是今天</string>
+    <string name="tomorrow">明天</string>
+    <string name="overdue_count">已逾期：%1$d</string>
+    <string name="scheduled">已安排</string>
+    <string name="someday">以后再说</string>
+    <string name="no_later_tasks">暂无以后的安排</string>
+    <string name="moved_to_tomorrow">好吧，明天</string>
+    <string name="moved_to_today">已移到今天</string>
+    <string name="take_today">移到今天</string>
+    <string name="choose_date">选择日期</string>
+    <string name="swipe_hint">向左滑动任务即可移到明天</string>
+    <string name="dismiss_hint">关闭提示</string>
     <string name="date_today">2025年4月24日，星期四</string>
     <string name="add_task">添加任务</string>
     <string name="task_finish_design">完成设计演示</string>
