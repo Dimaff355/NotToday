@@ -3,7 +3,6 @@
     <string name="app_name">Not today</string>
     <string name="today">Today</string>
     <string name="not_today">Not today</string>
-    <string name="tomorrow">Tomorrow</string>
     <string name="overdue_count">Overdue: %1$d</string>
     <string name="scheduled">Scheduled</string>
     <string name="someday">Someday</string>

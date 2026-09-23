@@ -3,7 +3,6 @@
     <string name="app_name">Не сегодня</string>
     <string name="today">Сегодня</string>
     <string name="not_today">Не сегодня</string>
-    <string name="tomorrow">Завтра</string>
     <string name="overdue_count">Просрочено: %1$d</string>
     <string name="scheduled">Запланировано</string>
     <string name="someday">Когда-нибудь</string>

@@ -3,7 +3,6 @@
     <string name="app_name">不是今天</string>
     <string name="today">今天</string>
     <string name="not_today">不是今天</string>
-    <string name="tomorrow">明天</string>
     <string name="overdue_count">已逾期：%1$d</string>
     <string name="scheduled">已安排</string>
     <string name="someday">以后再说</string>

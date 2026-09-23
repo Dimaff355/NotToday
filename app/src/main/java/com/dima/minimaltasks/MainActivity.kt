@@ -1101,30 +1101,14 @@ private fun TaskRow(
         SwipeToDismissBox(
             state = dismissState,
             enableDismissFromStartToEnd = false,
-            backgroundContent = { TomorrowSwipeBackground() },
+            // No background plate: the swipe hint under the header teaches the gesture, the
+            // haptic and the «Ладно, завтра» snackbar confirm it (1.3.02).
+            backgroundContent = {},
         ) {
             TaskRowContent(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate, onTakeToday)
         }
     } else {
         TaskRowContent(task, onEdit, onToggleComplete, completionFeedback, onTogglePriority, onDelete, onSetDate, onTakeToday)
-    }
-}
-
-/** What the row reveals when swiped left: a calm «tomorrow» target, no destructive styling. */
-@Composable
-private fun TomorrowSwipeBackground() {
-    Box(
-        modifier = Modifier.fillMaxSize().background(Blue.copy(alpha = 0.10f)),
-        contentAlignment = Alignment.CenterEnd,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 24.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(stringResource(R.string.tomorrow), color = Blue, fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
-            Spacer(Modifier.width(6.dp))
-            Icon(Icons.Default.SwipeLeft, contentDescription = null, tint = Blue, modifier = Modifier.size(20.dp))
-        }
     }
 }
 
