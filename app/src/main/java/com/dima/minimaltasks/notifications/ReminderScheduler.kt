@@ -55,10 +55,9 @@ class ReminderScheduler(private val context: Context) {
     )
 
     /**
-     * Rebuilds all alarms. Never cancels notifications of due tasks while reminders are on:
-     * on a cold start (the app was swiped away and its alarm just fired) this runs
-     * concurrently with [ReminderAlarmReceiver], which has just posted the reminder —
-     * cancelling here would silently wipe it.
+     * Rebuilds future alarms. A past-due eligible alarm may still be pending (inexact alarms
+     * can fire late), so do not cancel it. Also never cancel posted notifications here:
+     * a cold-start reconcile races with [ReminderAlarmReceiver].
      */
     fun reconcile(
         tasks: List<TaskEntity>,
@@ -72,7 +71,7 @@ class ReminderScheduler(private val context: Context) {
         tasks.forEach { task ->
             if (ReminderScheduling.shouldSchedule(task, nowMillis)) {
                 schedule(task, nowMillis)
-            } else {
+            } else if (!ReminderScheduling.isEligible(task)) {
                 cancelAlarm(task.id)
             }
         }
