@@ -54,21 +54,28 @@ class ReminderScheduler(private val context: Context) {
         canScheduleExactAlarms = canScheduleExactAlarms(),
     )
 
+    /**
+     * Rebuilds all alarms. Never cancels notifications of due tasks while reminders are on:
+     * on a cold start (the app was swiped away and its alarm just fired) this runs
+     * concurrently with [ReminderAlarmReceiver], which has just posted the reminder —
+     * cancelling here would silently wipe it.
+     */
     fun reconcile(
         tasks: List<TaskEntity>,
         notificationsEnabled: Boolean,
         nowMillis: Long = System.currentTimeMillis(),
     ) {
+        if (!notificationsEnabled) {
+            tasks.forEach { cancel(it.id) }
+            return
+        }
         tasks.forEach { task ->
-            cancelAlarm(task.id)
-            if (!notificationsEnabled || !ReminderScheduling.shouldSchedule(task, nowMillis)) {
-                cancelNotification(task.id)
+            if (ReminderScheduling.shouldSchedule(task, nowMillis)) {
+                schedule(task, nowMillis)
+            } else {
+                cancelAlarm(task.id)
             }
         }
-        if (!notificationsEnabled) return
-        tasks.asSequence()
-            .filter { ReminderScheduling.shouldSchedule(it, nowMillis) }
-            .forEach { schedule(it, nowMillis) }
     }
 
     private fun scheduleAt(taskId: String, triggerAtMillis: Long, nowMillis: Long): Boolean {
