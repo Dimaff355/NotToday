@@ -66,6 +66,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwipeLeft
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Update
@@ -165,6 +166,7 @@ import com.dima.minimaltasks.data.settings.SettingsRepository
 import com.dima.minimaltasks.data.settings.SettingsState
 import com.dima.minimaltasks.data.settings.ThemeMode
 import com.dima.minimaltasks.notifications.AlarmAccuracy
+import com.dima.minimaltasks.notifications.ReminderCoordinator
 import com.dima.minimaltasks.notifications.ReminderScheduling
 import com.dima.minimaltasks.ui.theme.MinimalTasksTheme
 import kotlinx.coroutines.CancellationException
@@ -176,6 +178,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -258,6 +261,7 @@ class MainActivity : AppCompatActivity() {
                         settingsRepository = app.settingsRepository,
                         backupManager = app.backupManager,
                         reminderPermissionController = reminderPermissionController,
+                        reminderCoordinator = app.reminderCoordinator,
                     )
                 }
             }
@@ -278,6 +282,7 @@ private fun MinimalTasksApp(
     settingsRepository: SettingsRepository,
     backupManager: BackupManager,
     reminderPermissionController: ReminderPermissionController,
+    reminderCoordinator: ReminderCoordinator,
 ) {
     val context = LocalContext.current
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
@@ -434,6 +439,7 @@ private fun MinimalTasksApp(
                     contentResolver = contentResolver,
                     alarmAccuracy = alarmAccuracy,
                     onNotificationsToggle = reminderPermissionController::requestExplicit,
+                    reminderCoordinator = reminderCoordinator,
                     backupOperationInProgress = backupOperationInProgress,
                     onBackupOperationInProgressChange = { backupOperationInProgress = it },
                     onBackupResult = { messageRes ->
@@ -1431,6 +1437,11 @@ private fun TaskEditorSheet(
                 Icon(Icons.Default.Schedule, contentDescription = null, tint = Blue)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.due_time), modifier = Modifier.weight(1f))
+                if (state.hasTime) {
+                    IconButton(onClick = viewModel::clearDueTime, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_due_time), tint = Blue, modifier = Modifier.size(20.dp))
+                    }
+                }
                 OutlinedButton(enabled = state.dueAt != null, onClick = {
                     val time = state.dueAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalTime() }
                     TimePickerDialog(context, { _, hour, minute -> viewModel.setDueTime(hour, minute) }, time?.hour ?: 9, time?.minute ?: 0, true).show()
@@ -1481,6 +1492,31 @@ private fun SettingSwitchRow(title: String, checked: Boolean, onCheckedChange: (
         Spacer(Modifier.width(12.dp))
         Text(title, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/** Day-before digest time; taps open the platform picker (Activity context). */
+@Composable
+private fun DayBeforeTimeRow(minuteOfDay: Int, onTimeChosen: (hour: Int, minute: Int) -> Unit) {
+    val context = LocalContext.current
+    val locale = LocalLocale.current.platformLocale
+    val label = remember(minuteOfDay, locale) {
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
+            .format(LocalTime.of(minuteOfDay / 60, minuteOfDay % 60))
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable {
+                TimePickerDialog(context, { _, hour, minute -> onTimeChosen(hour, minute) }, minuteOfDay / 60, minuteOfDay % 60, true).show()
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Lines up with the switch row text: leading icon 24 dp + 12 dp gap.
+        Spacer(Modifier.width(36.dp))
+        Text(stringResource(R.string.day_before_time), modifier = Modifier.weight(1f))
+        Text(label, color = Blue, modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
     }
 }
 
@@ -1536,6 +1572,7 @@ private fun SettingsScreen(
     contentResolver: android.content.ContentResolver,
     alarmAccuracy: AlarmAccuracy,
     onNotificationsToggle: (Boolean) -> Unit,
+    reminderCoordinator: ReminderCoordinator,
     backupOperationInProgress: Boolean,
     onBackupOperationInProgressChange: (Boolean) -> Unit,
     onBackupResult: (Int) -> Unit,
@@ -1663,6 +1700,16 @@ private fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(start = 44.dp, top = 2.dp),
         )
+        SettingSwitchRow(stringResource(R.string.day_before_reminder), settings.dayBeforeEnabled, { value ->
+            scope.launch { reminderCoordinator.setDayBeforeEnabled(value) }
+        }) {
+            Icon(Icons.Default.Update, contentDescription = null, tint = Blue)
+        }
+        if (settings.dayBeforeEnabled) {
+            DayBeforeTimeRow(minuteOfDay = settings.dayBeforeMinuteOfDay) { hour, minute ->
+                scope.launch { reminderCoordinator.setDayBeforeMinuteOfDay(hour * 60 + minute) }
+            }
+        }
         HorizontalDivider(modifier = Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
@@ -1813,7 +1860,7 @@ private fun BottomNavigation(selectedTab: Int, enabled: Boolean, onSelected: (In
         NavigationItem(Icons.Default.Home, stringResource(R.string.today), selectedTab == 0, enabled, Modifier.weight(1f)) { onSelected(0) }
         NavigationItem(Icons.Default.Update, stringResource(R.string.not_today), selectedTab == 1, enabled, Modifier.weight(1f)) { onSelected(1) }
         NavigationItem(Icons.Default.CalendarMonth, stringResource(R.string.calendar), selectedTab == 2, enabled, Modifier.weight(1f)) { onSelected(2) }
-        NavigationItem(Icons.Default.MoreHoriz, stringResource(R.string.more), selectedTab == 3, enabled, Modifier.weight(1f)) { onSelected(3) }
+        NavigationItem(Icons.Default.Settings, stringResource(R.string.settings), selectedTab == 3, enabled, Modifier.weight(1f)) { onSelected(3) }
     }
 }
 

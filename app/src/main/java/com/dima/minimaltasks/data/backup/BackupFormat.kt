@@ -172,6 +172,9 @@ object BackupFormat {
     fun validate(manifest: BackupManifest): BackupManifest {
         if (manifest.tasks.size > MAX_TASKS) fail("Too many tasks")
         if (manifest.attachments.size > MAX_ATTACHMENTS) fail("Too many attachments")
+        if (manifest.settings.dayBeforeMinuteOfDay !in 0..SettingsState.MAX_MINUTE_OF_DAY) {
+            fail("Invalid dayBeforeMinuteOfDay")
+        }
         val taskIds = manifest.tasks.map { it.id }
         if (taskIds.size != taskIds.toSet().size || taskIds.any { !safeId(it) }) fail("Invalid or duplicate task id")
         if (manifest.tasks.any { it.title.length > MAX_TEXT_LENGTH || (it.description?.length ?: 0) > MAX_TEXT_LENGTH }) {
@@ -286,10 +289,19 @@ object BackupFormat {
         .put("notificationsEnabled", settings.notificationsEnabled)
         .put("notificationPermissionAsked", settings.notificationPermissionAsked)
         .put("welcomeCompleted", settings.welcomeCompleted)
+        .put("dayBeforeEnabled", settings.dayBeforeEnabled)
+        .put("dayBeforeMinuteOfDay", settings.dayBeforeMinuteOfDay)
 
     private fun settingsFromJson(value: JSONObject): SettingsState {
         val themeName = requiredString(value, "themeMode", 16)
         val themeMode = runCatching { ThemeMode.valueOf(themeName) }.getOrElse { fail("Invalid theme mode") }
+        val dayBeforeMinuteOfDay = if (value.has("dayBeforeMinuteOfDay")) {
+            val minute = requiredInt(value, "dayBeforeMinuteOfDay")
+            if (minute < 0 || minute > SettingsState.MAX_MINUTE_OF_DAY) fail("Invalid dayBeforeMinuteOfDay")
+            minute
+        } else {
+            SettingsState.DEFAULT_DAY_BEFORE_MINUTE_OF_DAY
+        }
         return SettingsState(
             themeMode = themeMode,
             completionSoundEnabled = requiredBoolean(value, "completionSoundEnabled"),
@@ -298,6 +310,9 @@ object BackupFormat {
             notificationPermissionAsked = requiredBoolean(value, "notificationPermissionAsked"),
             // Backups from versions without the first-run screen restore as already onboarded.
             welcomeCompleted = if (value.has("welcomeCompleted")) requiredBoolean(value, "welcomeCompleted") else true,
+            // Same for the day-before digest: older backups fall back to its defaults.
+            dayBeforeEnabled = if (value.has("dayBeforeEnabled")) requiredBoolean(value, "dayBeforeEnabled") else true,
+            dayBeforeMinuteOfDay = dayBeforeMinuteOfDay,
         )
     }
 

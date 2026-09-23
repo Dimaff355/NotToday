@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,8 @@ class SettingsRepository(private val context: Context) {
         val notificationPermissionAsked = booleanPreferencesKey("notification_permission_asked")
         val welcomeCompleted = booleanPreferencesKey("welcome_completed")
         val swipeHintDismissed = booleanPreferencesKey("swipe_hint_dismissed")
+        val dayBeforeEnabled = booleanPreferencesKey("day_before_enabled")
+        val dayBeforeMinuteOfDay = intPreferencesKey("day_before_minute_of_day")
     }
 
     val state: Flow<SettingsState> = context.settingsDataStore.data
@@ -39,6 +42,10 @@ class SettingsRepository(private val context: Context) {
                 notificationPermissionAsked = preferences[Keys.notificationPermissionAsked] ?: false,
                 welcomeCompleted = preferences[Keys.welcomeCompleted] ?: false,
                 swipeHintDismissed = preferences[Keys.swipeHintDismissed] ?: false,
+                dayBeforeEnabled = preferences[Keys.dayBeforeEnabled] ?: true,
+                dayBeforeMinuteOfDay = SettingsState.sanitizeMinuteOfDay(
+                    preferences[Keys.dayBeforeMinuteOfDay] ?: SettingsState.DEFAULT_DAY_BEFORE_MINUTE_OF_DAY,
+                ),
             )
         }
 
@@ -70,6 +77,14 @@ class SettingsRepository(private val context: Context) {
         it[Keys.swipeHintDismissed] = true
     }
 
+    suspend fun setDayBeforeEnabled(value: Boolean) = context.settingsDataStore.edit {
+        it[Keys.dayBeforeEnabled] = value
+    }
+
+    suspend fun setDayBeforeMinuteOfDay(value: Int) = context.settingsDataStore.edit {
+        it[Keys.dayBeforeMinuteOfDay] = SettingsState.sanitizeMinuteOfDay(value)
+    }
+
     suspend fun replace(value: SettingsState) = context.settingsDataStore.edit {
         it[Keys.themeMode] = value.themeMode.name
         it[Keys.completionSoundEnabled] = value.completionSoundEnabled
@@ -77,5 +92,7 @@ class SettingsRepository(private val context: Context) {
         it[Keys.notificationsEnabled] = value.notificationsEnabled
         it[Keys.notificationPermissionAsked] = value.notificationPermissionAsked
         it[Keys.welcomeCompleted] = value.welcomeCompleted
+        it[Keys.dayBeforeEnabled] = value.dayBeforeEnabled
+        it[Keys.dayBeforeMinuteOfDay] = SettingsState.sanitizeMinuteOfDay(value.dayBeforeMinuteOfDay)
     }
 }

@@ -12,9 +12,11 @@ import com.dima.minimaltasks.data.local.TaskEntity
 import com.dima.minimaltasks.data.local.TaskWithAttachments
 import com.dima.minimaltasks.data.settings.SettingsState
 import com.dima.minimaltasks.data.settings.ThemeMode
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackupFormatTest {
@@ -55,6 +57,8 @@ class BackupFormatTest {
             vibrationEnabled = true,
             notificationsEnabled = false,
             notificationPermissionAsked = true,
+            dayBeforeEnabled = false,
+            dayBeforeMinuteOfDay = 18 * 60 + 30,
         )
 
         val manifest = BackupFormat.manifestFor(
@@ -144,5 +148,32 @@ class BackupFormatTest {
         assertThrows(BackupValidationException::class.java) {
             BackupFormat.decode("{\"format\":\"minimal_tasks_backup\",\"version\":99}".toByteArray())
         }
+    }
+
+    @Test
+    fun olderManifestsWithoutDayBeforeFieldsRestoreItsDefaults() {
+        val settings = SettingsState(dayBeforeEnabled = false, dayBeforeMinuteOfDay = 8 * 60)
+        val encoded = JSONObject(BackupFormat.encode(BackupFormat.manifestFor(emptyList(), settings, createdAt = 5)).toString(Charsets.UTF_8))
+        encoded.getJSONObject("settings").apply {
+            remove("dayBeforeEnabled")
+            remove("dayBeforeMinuteOfDay")
+        }
+
+        val restored = BackupFormat.decode(encoded.toString().toByteArray())
+
+        assertTrue(restored.settings.dayBeforeEnabled)
+        assertEquals(SettingsState.DEFAULT_DAY_BEFORE_MINUTE_OF_DAY, restored.settings.dayBeforeMinuteOfDay)
+    }
+
+    @Test
+    fun outOfRangeDayBeforeMinuteIsRejected() {
+        val invalid = BackupManifest(
+            createdAt = 1,
+            tasks = emptyList(),
+            attachments = emptyList(),
+            settings = SettingsState(dayBeforeMinuteOfDay = 24 * 60),
+        )
+
+        assertThrows(BackupValidationException::class.java) { BackupFormat.validate(invalid) }
     }
 }

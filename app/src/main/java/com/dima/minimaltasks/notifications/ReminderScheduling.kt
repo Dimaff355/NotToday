@@ -1,6 +1,10 @@
 package com.dima.minimaltasks.notifications
 
 import com.dima.minimaltasks.data.local.TaskEntity
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 
 enum class AlarmScheduleMode {
     EXACT_ALLOW_IDLE,
@@ -22,6 +26,29 @@ object ReminderScheduling {
 
     fun shouldSchedule(task: TaskEntity, nowMillis: Long): Boolean =
         isEligible(task) && task.dueAt!! > nowMillis
+
+    /**
+     * Next day-before digest fire time: today at [minuteOfDay] when that moment is still ahead,
+     * otherwise the same time tomorrow. DST gaps/overlaps are left to java.time, which shifts
+     * the local time into the valid range of the resulting day.
+     */
+    fun nextDayBeforeAt(minuteOfDay: Int, nowMillis: Long, zoneId: ZoneId): Long {
+        val now = Instant.ofEpochMilli(nowMillis)
+        val minute = minuteOfDay.coerceIn(0, 24 * 60 - 1)
+        var next = now.atZone(zoneId).toLocalDate()
+            .atTime(LocalTime.of(minute / 60, minute % 60))
+            .atZone(zoneId)
+        if (!next.toInstant().isAfter(now)) next = next.plusDays(1)
+        return next.toInstant().toEpochMilli()
+    }
+
+    /** Active tasks whose local due date is [date], by due time then creation. */
+    fun tasksDueOn(tasks: List<TaskEntity>, date: LocalDate, zoneId: ZoneId): List<TaskEntity> =
+        tasks.asSequence()
+            .filter { !it.completed && it.dueAt != null }
+            .filter { Instant.ofEpochMilli(it.dueAt!!).atZone(zoneId).toLocalDate() == date }
+            .sortedWith(compareBy({ it.dueAt!! }, { it.createdAt }))
+            .toList()
 
     fun scheduleMode(apiLevel: Int, canScheduleExactAlarms: Boolean): AlarmScheduleMode =
         when {

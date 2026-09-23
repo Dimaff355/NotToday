@@ -39,7 +39,6 @@
     <string name="calendar_next_month">Следующий месяц</string>
     <string name="calendar_add_task">Добавить задачу на этот день</string>
     <string name="no_tasks_for_day">На этот день задач нет</string>
-    <string name="more">Ещё</string>
     <string name="selected_day">24</string>
     <string name="no_tasks_today">На сегодня задач нет</string>
     <string name="no_active_tasks">Нет активных задач</string>
@@ -67,6 +66,7 @@
     <string name="choose">Выбрать</string>
     <string name="optional">Не задано</string>
     <string name="clear_due">Очистить дату</string>
+    <string name="clear_due_time">Очистить время</string>
     <string name="priority">Приоритет</string>
     <string name="repeat_task">Повторять</string>
     <string name="interval">Интервал</string>
@@ -117,6 +117,8 @@
     <string name="completion_sound">Звук выполнения</string>
     <string name="vibration">Вибрация</string>
     <string name="notifications">Уведомления</string>
+    <string name="day_before_reminder">Напоминать за день</string>
+    <string name="day_before_time">Время напоминания</string>
     <string name="notifications_permission_denied">Разрешение на уведомления отклонено</string>
     <string name="reminder_accuracy_exact">Точные напоминания включены</string>
     <string name="reminder_accuracy_fallback">Работает в совместимом режиме: точный доступ не разрешён</string>
@@ -136,6 +138,7 @@
     <string name="reminder_channel_name">Напоминания о задачах</string>
     <string name="reminder_channel_description">Уведомления о задачах с заданным временем</string>
     <string name="reminder_title">Напоминание</string>
+    <string name="day_before_title">Завтра надо</string>
     <string name="reminder_body">Пора: %1$s</string>
     <string name="reminder_complete">Выполнено</string>
     <string name="reminder_snooze">Отложить на 10 минут</string>

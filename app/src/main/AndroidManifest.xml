@@ -36,6 +36,9 @@
             android:name=".notifications.ReminderAlarmReceiver"
             android:exported="false" />
         <receiver
+            android:name=".notifications.DayBeforeAlarmReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".notifications.ReminderActionReceiver"
             android:exported="false" />
         <receiver

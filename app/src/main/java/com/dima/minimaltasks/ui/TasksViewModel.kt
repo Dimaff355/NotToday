@@ -162,6 +162,18 @@ class TasksViewModel(
 
     fun clearDueDate() = updateEditor { it.copy(dueAt = null, hasTime = false, dueDateAutoAssigned = false) }
 
+    /** Drops the time of day but keeps the date: the due instant moves to that day's start. */
+    fun clearDueTime() = updateEditor { state ->
+        if (!state.hasTime || state.dueAt == null) {
+            state
+        } else {
+            state.copy(
+                dueAt = dueLocalDate(state.dueAt).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                hasTime = false,
+            )
+        }
+    }
+
     fun setRecurrenceEnabled(enabled: Boolean) {
         val todayMillis = TaskEditorDefaults.todayStartMillis()
         updateEditor { TaskEditorDefaults.applyRecurrenceToggle(it, enabled, todayMillis) }

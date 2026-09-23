@@ -33,14 +33,7 @@ object ReminderNotifications {
     }
 
     fun post(context: Context, task: TaskEntity) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
+        if (!canPost(context)) return
         ensureChannel(context)
         val openIntent = Intent(context, MainActivity::class.java)
             .setAction(Intent.ACTION_VIEW)
@@ -78,6 +71,52 @@ object ReminderNotifications {
             // The notification permission can be revoked between the check and notify().
         }
     }
+
+    /** Day-before digest: one notification titled «due tomorrow» with a line per task. */
+    fun postDayBefore(context: Context, tasks: List<TaskEntity>) {
+        if (tasks.isEmpty() || !canPost(context)) return
+        ensureChannel(context)
+        val openIntent = Intent(context, MainActivity::class.java)
+            .setAction(Intent.ACTION_VIEW)
+            .setData(Uri.parse("minimal-tasks://day-before"))
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            ReminderIdentity.dayBeforeContentRequestCode(),
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val titles = tasks.joinToString(", ") { it.title }
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(context.getString(R.string.day_before_title))
+            .setContentText(titles)
+            .setContentIntent(contentIntent)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+        if (tasks.size > 1) {
+            builder.setStyle(
+                NotificationCompat.InboxStyle()
+                    .setBigContentTitle(context.getString(R.string.day_before_title))
+                    .setSummaryText(titles)
+                    .also { style -> tasks.forEach { style.addLine(it.title) } },
+            )
+        }
+        try {
+            NotificationManagerCompat.from(context)
+                .notify(ReminderIdentity.dayBeforeNotificationId(), builder.build())
+        } catch (_: SecurityException) {
+            // The notification permission can be revoked between the check and notify().
+        }
+    }
+
+    private fun canPost(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
 
     private fun actionPendingIntent(
         context: Context,

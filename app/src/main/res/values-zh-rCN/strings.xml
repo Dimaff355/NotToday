@@ -39,7 +39,6 @@
     <string name="calendar_next_month">下个月</string>
     <string name="calendar_add_task">为此日期添加任务</string>
     <string name="no_tasks_for_day">这一天没有任务</string>
-    <string name="more">更多</string>
     <string name="selected_day">24</string>
     <string name="no_tasks_today">今天没有任务</string>
     <string name="no_active_tasks">没有进行中的任务</string>
@@ -67,6 +66,7 @@
     <string name="choose">选择</string>
     <string name="optional">未设置</string>
     <string name="clear_due">清除日期</string>
+    <string name="clear_due_time">清除时间</string>
     <string name="priority">优先级</string>
     <string name="repeat_task">重复</string>
     <string name="interval">间隔</string>
@@ -117,6 +117,8 @@
     <string name="completion_sound">完成提示音</string>
     <string name="vibration">振动</string>
     <string name="notifications">通知</string>
+    <string name="day_before_reminder">提前一天提醒</string>
+    <string name="day_before_time">提醒时间</string>
     <string name="notifications_permission_denied">通知权限已拒绝</string>
     <string name="reminder_accuracy_exact">已启用精确提醒</string>
     <string name="reminder_accuracy_fallback">兼容模式：未允许精确闹钟权限</string>
@@ -136,6 +138,7 @@
     <string name="reminder_channel_name">任务提醒</string>
     <string name="reminder_channel_description">具有指定时间的任务通知</string>
     <string name="reminder_title">提醒</string>
+    <string name="day_before_title">明天要做</string>
     <string name="reminder_body">到时间了：%1$s</string>
     <string name="reminder_complete">完成</string>
     <string name="reminder_snooze">延后10分钟</string>
