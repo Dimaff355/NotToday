@@ -1798,7 +1798,6 @@ private fun themeLabel(mode: ThemeMode): Int = when (mode) {
 private fun reminderAccuracyLabel(accuracy: AlarmAccuracy): Int = when (accuracy) {
     AlarmAccuracy.EXACT -> R.string.reminder_accuracy_exact
     AlarmAccuracy.FALLBACK -> R.string.reminder_accuracy_fallback
-    AlarmAccuracy.STANDARD -> R.string.reminder_accuracy_standard
 }
 
 private fun currentAppLanguage(): AppLanguage {

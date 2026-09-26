@@ -15,6 +15,7 @@ import com.dima.minimaltasks.data.local.AttachmentEntity
 import com.dima.minimaltasks.data.local.RecurrenceUnit
 import com.dima.minimaltasks.data.local.TaskEntity
 import com.dima.minimaltasks.notifications.ReminderCoordinator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -196,23 +198,32 @@ class TasksViewModel(
         }
         viewModelScope.launch {
             try {
-                val displayName = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) cursor.getString(0) else null
-                } ?: uri.lastPathSegment.orEmpty()
-                val mimeType = contentResolver.getType(uri).orEmpty()
-                contentResolver.openInputStream(uri)?.use { input ->
-                    val staged = attachmentStore.stage(
-                        taskId = state.taskId,
-                        source = input,
-                        displayName = displayName,
-                        mimeType = mimeType,
-                        existingCount = remaining,
-                    )
-                    _editor.value = _editor.value?.copy(
-                        stagedAttachments = _editor.value!!.stagedAttachments + StagedAttachmentState(staged),
+                // Up to 20 MB of copying: never on the main thread.
+                val staged = withContext(Dispatchers.IO) {
+                    val displayName = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getString(0) else null
+                    } ?: uri.lastPathSegment.orEmpty()
+                    val mimeType = contentResolver.getType(uri).orEmpty()
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        attachmentStore.stage(
+                            taskId = state.taskId,
+                            source = input,
+                            displayName = displayName,
+                            mimeType = mimeType,
+                            existingCount = remaining,
+                        )
+                    }
+                }
+                val current = _editor.value
+                when {
+                    staged == null -> _editor.value = current?.copy(error = EditorError.ATTACHMENT_ERROR)
+                    // The editor was closed or switched to another task while the file was copying.
+                    current?.taskId != state.taskId -> attachmentStore.discard(staged)
+                    else -> _editor.value = current.copy(
+                        stagedAttachments = current.stagedAttachments + StagedAttachmentState(staged),
                         error = null,
                     )
-                } ?: run { _editor.value = _editor.value?.copy(error = EditorError.ATTACHMENT_ERROR) }
+                }
             } catch (_: AttachmentTooLargeException) {
                 _editor.value = _editor.value?.copy(error = EditorError.ATTACHMENT_TOO_LARGE)
             } catch (_: Throwable) {
@@ -256,7 +267,7 @@ class TasksViewModel(
 
         val committed = mutableListOf<String>()
         val newAttachments = mutableListOf<AttachmentEntity>()
-        try {
+        val saved = try {
             state.stagedAttachments.forEach { stagedState ->
                 val staged = stagedState.value
                 val path = attachmentStore.commit(staged)
@@ -301,7 +312,7 @@ class TasksViewModel(
             _editor.value = _editor.value?.copy(stagedAttachments = restoredStaged, error = EditorError.SAVE_ERROR)
             return false
         }
-        reminderCoordinator.onTaskSaved(task, now)
+        reminderCoordinator.onTaskSaved(saved, now)
         state.attachments.filter { it.id in state.removedAttachmentIds }.forEach { attachment ->
             runCatching { attachmentStore.delete(attachment.relativePath) }
         }
@@ -333,26 +344,27 @@ class TasksViewModel(
     }
 
     suspend fun togglePriority(task: TaskEntity) {
-        repository.updateTask(task.copy(isPriority = !task.isPriority, updatedAt = System.currentTimeMillis()))
+        repository.updateTask(task.id) { it.copy(isPriority = !it.isPriority, updatedAt = System.currentTimeMillis()) }
     }
 
     /**
      * Moves a task to another date, keeping the time of day if the task has one. Returns false
      * when nothing changed or the row disappeared. Reminders are re-planned for the new due time.
      */
-    suspend fun moveTaskDate(task: TaskEntity, date: LocalDate): Boolean {
-        val time = if (task.dueHasTime) dueLocalTime(task.dueAt) else LocalTime.MIDNIGHT
+    suspend fun moveTaskDate(task: TaskEntity, date: LocalDate): Boolean = writeTask(task.id) { current ->
+        val time = if (current.dueHasTime) dueLocalTime(current.dueAt) else LocalTime.MIDNIGHT
         val newDueAt = date.atTime(time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        if (newDueAt == task.dueAt) return false
-        return writeTask(task.copy(dueAt = newDueAt, updatedAt = System.currentTimeMillis()))
+        if (newDueAt == current.dueAt) null else current.copy(dueAt = newDueAt, updatedAt = System.currentTimeMillis())
     }
 
-    /** Writes a snapshot back (undo of a date move) and re-plans its reminder. */
-    suspend fun restoreTask(task: TaskEntity): Boolean = writeTask(task.copy(updatedAt = System.currentTimeMillis()))
+    /** Undo of a date move: puts back only the old due date of [task], keeping everything else current. */
+    suspend fun restoreTask(task: TaskEntity): Boolean = writeTask(task.id) {
+        it.copy(dueAt = task.dueAt, updatedAt = System.currentTimeMillis())
+    }
 
-    private suspend fun writeTask(task: TaskEntity): Boolean = runCatching {
-        repository.updateTask(task)
-        reminderCoordinator.onTaskSaved(task)
+    private suspend fun writeTask(taskId: String, transform: (TaskEntity) -> TaskEntity?): Boolean = runCatching {
+        val saved = repository.updateTask(taskId, transform) ?: return false
+        reminderCoordinator.onTaskSaved(saved)
     }.isSuccess
 
     /** Deletes every task that still exists and returns the ids that were actually removed. */

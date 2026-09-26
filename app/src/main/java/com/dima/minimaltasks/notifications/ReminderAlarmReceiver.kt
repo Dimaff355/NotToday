@@ -16,7 +16,8 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                 return@runBoundedAsync
             }
             val task = app.repository.findTask(taskId)
-            if (task == null || task.completed) {
+            // Reconcile leaves stale alarms in place, so re-check eligibility at fire time.
+            if (task == null || !ReminderScheduling.isEligible(task)) {
                 app.reminderScheduler.cancel(taskId)
                 return@runBoundedAsync
             }

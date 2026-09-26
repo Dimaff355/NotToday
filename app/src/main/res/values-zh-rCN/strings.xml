@@ -122,7 +122,6 @@
     <string name="notifications_permission_denied">通知权限已拒绝</string>
     <string name="reminder_accuracy_exact">已启用精确提醒</string>
     <string name="reminder_accuracy_fallback">兼容模式：未允许精确闹钟权限</string>
-    <string name="reminder_accuracy_standard">标准提醒</string>
     <string name="backup">备份</string>
     <string name="backup_export">导出</string>
     <string name="backup_import">导入</string>

@@ -56,27 +56,23 @@ class ReminderScheduler(private val context: Context) {
         cancelNotification(taskId)
     }
 
-    fun cancelAll(tasks: Iterable<TaskEntity>) {
-        tasks.forEach { cancel(it.id) }
-    }
-
     fun canScheduleExactAlarms(): Boolean =
         Build.VERSION.SDK_INT < 31 || alarmManager.canScheduleExactAlarms()
 
-    fun alarmAccuracy(): AlarmAccuracy = ReminderScheduling.alarmAccuracy(
-        apiLevel = Build.VERSION.SDK_INT,
-        canScheduleExactAlarms = canScheduleExactAlarms(),
-    )
+    fun alarmAccuracy(): AlarmAccuracy =
+        if (canScheduleExactAlarms()) AlarmAccuracy.EXACT else AlarmAccuracy.FALLBACK
 
     /**
-     * Rebuilds future alarms. A past-due eligible alarm may still be pending (inexact alarms
-     * can fire late), so do not cancel it. Also never cancel posted notifications here:
-     * a cold-start reconcile races with [ReminderAlarmReceiver]. The day-before digest has no
-     * past-due state to preserve — while it is enabled its alarm is simply re-armed for the
-     * next occurrence, and only disabling cancels alarm and notification.
+     * Rebuilds alarms from [schedulable] (active, timed, still ahead — see
+     * [com.dima.minimaltasks.data.TaskRepository.findSchedulable]) and the digest; runs on every
+     * start and resume, so its cost follows the pending tasks, not the whole history.
+     * Past-due alarms are left alone: an inexact one may still be pending, and cancelling
+     * posted notifications here would race with [ReminderAlarmReceiver] on a cold start. Stale
+     * alarms of tasks that stopped being eligible are harmless: receivers re-check the task.
+     * With reminders off, pending alarms and every posted notification are removed.
      */
     fun reconcile(
-        tasks: List<TaskEntity>,
+        schedulable: List<TaskEntity>,
         notificationsEnabled: Boolean,
         dayBeforeMinuteOfDay: Int? = null,
         nowMillis: Long = System.currentTimeMillis(),
@@ -86,16 +82,11 @@ class ReminderScheduler(private val context: Context) {
         } else {
             cancelDayBefore()
         }
-        if (!notificationsEnabled) {
-            tasks.forEach { cancel(it.id) }
-            return
-        }
-        tasks.forEach { task ->
-            if (ReminderScheduling.shouldSchedule(task, nowMillis)) {
-                schedule(task, nowMillis)
-            } else if (!ReminderScheduling.isEligible(task)) {
-                cancelAlarm(task.id)
-            }
+        if (notificationsEnabled) {
+            schedulable.forEach { schedule(it, nowMillis) }
+        } else {
+            schedulable.forEach { cancelAlarm(it.id) }
+            notificationManager.cancelAll()
         }
     }
 
@@ -104,40 +95,17 @@ class ReminderScheduler(private val context: Context) {
         return triggerAtMillis > nowMillis
     }
 
+    /** Exact whenever allowed (before API 31 that needs no grant), otherwise idle-tolerant inexact. */
     private fun setAlarmAt(pendingIntent: PendingIntent, triggerAtMillis: Long) {
-        val mode = ReminderScheduling.scheduleMode(
-            apiLevel = Build.VERSION.SDK_INT,
-            canScheduleExactAlarms = canScheduleExactAlarms(),
-        )
-        try {
-            when (mode) {
-                AlarmScheduleMode.EXACT_ALLOW_IDLE ->
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerAtMillis,
-                        pendingIntent,
-                    )
-
-                AlarmScheduleMode.ALLOW_IDLE ->
-                    alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerAtMillis,
-                        pendingIntent,
-                    )
-
-                AlarmScheduleMode.INEXACT ->
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        if (canScheduleExactAlarms()) {
+            try {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+                return
+            } catch (_: SecurityException) {
+                // The exact-alarm grant can change between the capability check and the call.
             }
-        } catch (error: SecurityException) {
-            // The exact-alarm grant can change between the capability check and the call.
-            // Keep reminders useful by degrading to the idle-tolerant inexact API.
-            if (mode != AlarmScheduleMode.EXACT_ALLOW_IDLE) throw error
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                pendingIntent,
-            )
         }
+        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
     }
 
     private fun alarmPendingIntent(taskId: String): PendingIntent {

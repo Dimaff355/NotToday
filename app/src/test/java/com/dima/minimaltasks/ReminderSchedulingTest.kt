@@ -1,7 +1,6 @@
 package com.dima.minimaltasks
 
 import com.dima.minimaltasks.data.local.TaskEntity
-import com.dima.minimaltasks.notifications.AlarmScheduleMode
 import com.dima.minimaltasks.notifications.ReminderIdentity
 import com.dima.minimaltasks.notifications.ReminderScheduling
 import org.junit.Assert.assertEquals
@@ -36,17 +35,6 @@ class ReminderSchedulingTest {
         assertEquals(ReminderIdentity.dayBeforeAlarmRequestCode(), ReminderIdentity.dayBeforeAlarmRequestCode())
         assertNotEquals(ReminderIdentity.dayBeforeAlarmRequestCode(), ReminderIdentity.dayBeforeNotificationId())
         assertTrue(ReminderIdentity.dayBeforeNotificationId() > 0)
-    }
-
-    @Test
-    fun exact_alarm_falls_back_without_permission() {
-        assertEquals(AlarmScheduleMode.EXACT_ALLOW_IDLE, ReminderScheduling.scheduleMode(35, true))
-        assertEquals(AlarmScheduleMode.ALLOW_IDLE, ReminderScheduling.scheduleMode(35, false))
-        assertEquals(AlarmScheduleMode.ALLOW_IDLE, ReminderScheduling.scheduleMode(26, false))
-        assertEquals(AlarmScheduleMode.INEXACT, ReminderScheduling.scheduleMode(22, false))
-        assertEquals(com.dima.minimaltasks.notifications.AlarmAccuracy.EXACT, ReminderScheduling.alarmAccuracy(35, true))
-        assertEquals(com.dima.minimaltasks.notifications.AlarmAccuracy.FALLBACK, ReminderScheduling.alarmAccuracy(35, false))
-        assertEquals(com.dima.minimaltasks.notifications.AlarmAccuracy.STANDARD, ReminderScheduling.alarmAccuracy(30, false))
     }
 
     @Test

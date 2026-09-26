@@ -66,17 +66,7 @@ class ReminderCoordinator(
 
     suspend fun setNotificationsEnabled(enabled: Boolean) {
         settingsRepository.setNotificationsEnabled(enabled)
-        val tasks = repository.snapshot()
-        if (!enabled) {
-            scheduler.cancelAll(tasks)
-            scheduler.cancelDayBefore()
-        } else {
-            scheduler.reconcile(
-                tasks,
-                notificationsEnabled = true,
-                dayBeforeMinuteOfDay = settingsRepository.state.first().dayBeforeMinuteOrNull,
-            )
-        }
+        reconcile()
     }
 
     /** Persists the day-before digest switch and re-arms (or cancels) its alarm. */
@@ -94,7 +84,7 @@ class ReminderCoordinator(
     suspend fun reconcile(nowMillis: Long = System.currentTimeMillis()) {
         val settings = settingsRepository.state.first()
         scheduler.reconcile(
-            repository.snapshot(),
+            repository.findSchedulable(nowMillis),
             notificationsEnabled = settings.notificationsEnabled,
             dayBeforeMinuteOfDay = settings.dayBeforeMinuteOrNull,
             nowMillis = nowMillis,

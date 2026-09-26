@@ -122,7 +122,6 @@
     <string name="notifications_permission_denied">Notification permission was denied</string>
     <string name="reminder_accuracy_exact">Exact reminders are enabled</string>
     <string name="reminder_accuracy_fallback">Compatibility mode: exact alarm access is off</string>
-    <string name="reminder_accuracy_standard">Standard reminders</string>
     <string name="backup">Backup</string>
     <string name="backup_export">Export</string>
     <string name="backup_import">Import</string>

@@ -9,7 +9,10 @@ import com.dima.minimaltasks.data.settings.SettingsRepository
 import com.dima.minimaltasks.data.settings.SettingsState
 import com.dima.minimaltasks.notifications.ReminderCoordinator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -31,7 +34,14 @@ class BackupManager(
     private val settingsRepository: SettingsRepository,
     private val reminderCoordinator: ReminderCoordinator,
 ) {
-    suspend fun export(output: OutputStream): BackupSummary = withContext(Dispatchers.IO) {
+    /** Export and import never overlap: after an Activity restart the UI forgets one is running. */
+    private val operationLock = Mutex()
+
+    suspend fun export(output: OutputStream): BackupSummary = operationLock.withLock {
+        withContext(Dispatchers.IO) { exportUnlocked(output) }
+    }
+
+    private suspend fun exportUnlocked(output: OutputStream): BackupSummary {
         val taskSnapshots = repository.snapshotWithAttachments()
         val settings = settingsRepository.state.first()
         val manifest = BackupFormat.manifestFor(taskSnapshots, settings)
@@ -61,15 +71,21 @@ class BackupManager(
                 zip.closeEntry()
             }
         }
-        BackupSummary(manifest.tasks.size, manifest.attachments.size)
+        return BackupSummary(manifest.tasks.size, manifest.attachments.size)
     }
 
-    suspend fun `import`(input: InputStream): BackupSummary = withContext(Dispatchers.IO) {
-        val previous = repository.snapshotWithAttachments()
-        val previousTasks = previous.map(TaskWithAttachments::task)
-        val previousAttachments = previous.flatMap(TaskWithAttachments::attachments)
-        val previousSettings = settingsRepository.state.first()
-        importBlocking(input, previousTasks, previousAttachments, previousSettings)
+    /**
+     * Runs to the end even if the caller is cancelled (Activity recreated mid-import): a
+     * cancelled rollback would leave the database pointing at attachment files it just deleted.
+     */
+    suspend fun `import`(input: InputStream): BackupSummary = operationLock.withLock {
+        withContext(NonCancellable + Dispatchers.IO) {
+            val previous = repository.snapshotWithAttachments()
+            val previousTasks = previous.map(TaskWithAttachments::task)
+            val previousAttachments = previous.flatMap(TaskWithAttachments::attachments)
+            val previousSettings = settingsRepository.state.first()
+            importBlocking(input, previousTasks, previousAttachments, previousSettings)
+        }
     }
 
     private suspend fun importBlocking(

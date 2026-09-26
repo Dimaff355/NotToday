@@ -47,6 +47,9 @@ interface TaskDao {
     @Query("DELETE FROM tasks")
     suspend fun deleteAll()
 
+    @Query("SELECT * FROM tasks WHERE completed = 0 AND dueHasTime = 1 AND dueAt > :nowMillis")
+    suspend fun findSchedulable(nowMillis: Long): List<TaskEntity>
+
     @Query("SELECT * FROM tasks WHERE recurrenceParentTaskId = :parentId LIMIT 1")
     suspend fun findChildFor(parentId: String): TaskEntity?
 

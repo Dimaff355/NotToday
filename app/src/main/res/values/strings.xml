@@ -122,7 +122,6 @@
     <string name="notifications_permission_denied">Разрешение на уведомления отклонено</string>
     <string name="reminder_accuracy_exact">Точные напоминания включены</string>
     <string name="reminder_accuracy_fallback">Работает в совместимом режиме: точный доступ не разрешён</string>
-    <string name="reminder_accuracy_standard">Стандартные напоминания</string>
     <string name="backup">Резервная копия</string>
     <string name="backup_export">Экспорт</string>
     <string name="backup_import">Импорт</string>
