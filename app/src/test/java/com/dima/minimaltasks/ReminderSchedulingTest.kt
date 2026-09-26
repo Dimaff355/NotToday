@@ -2,6 +2,7 @@ package com.dima.minimaltasks
 
 import com.dima.minimaltasks.data.local.TaskEntity
 import com.dima.minimaltasks.notifications.ReminderIdentity
+import com.dima.minimaltasks.notifications.ReminderIntents
 import com.dima.minimaltasks.notifications.ReminderScheduling
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,6 +36,17 @@ class ReminderSchedulingTest {
         assertEquals(ReminderIdentity.dayBeforeAlarmRequestCode(), ReminderIdentity.dayBeforeAlarmRequestCode())
         assertNotEquals(ReminderIdentity.dayBeforeAlarmRequestCode(), ReminderIdentity.dayBeforeNotificationId())
         assertTrue(ReminderIdentity.dayBeforeNotificationId() > 0)
+    }
+
+    @Test
+    fun task_uri_round_trips_and_rejects_foreign_links() {
+        val id = "3f2b8c1e-0a4d-4e5f-9b6a-1c2d3e4f5a6b"
+        assertEquals(id, ReminderIntents.taskIdFromUri(ReminderIntents.taskUri(id)))
+        assertEquals(null, ReminderIntents.taskIdFromUri(null))
+        assertEquals(null, ReminderIntents.taskIdFromUri("minimal-tasks://day-before"))
+        assertEquals(null, ReminderIntents.taskIdFromUri("minimal-tasks://task/"))
+        assertEquals(null, ReminderIntents.taskIdFromUri("minimal-tasks://task/../x"))
+        assertEquals(null, ReminderIntents.taskIdFromUri("https://task/$id"))
     }
 
     @Test

@@ -37,7 +37,7 @@ object ReminderNotifications {
         ensureChannel(context)
         val openIntent = Intent(context, MainActivity::class.java)
             .setAction(Intent.ACTION_VIEW)
-            .setData(Uri.parse("minimal-tasks://task/${task.id}"))
+            .setData(Uri.parse(ReminderIntents.taskUri(task.id)))
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val contentIntent = PendingIntent.getActivity(
             context,

@@ -137,6 +137,13 @@ class TasksViewModel(
         }
     }
 
+    /** Notification tap: shows [taskId] unless it is already open; another open draft is dropped. */
+    fun openTaskFromNotification(taskId: String) {
+        if (_editor.value?.taskId == taskId) return
+        cancelEditor()
+        openExistingTask(taskId)
+    }
+
     fun updateEditor(transform: (TaskEditorState) -> TaskEditorState) {
         _editor.value = _editor.value?.let { transform(it).copy(error = null) }
     }

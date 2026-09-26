@@ -167,6 +167,7 @@ import com.dima.minimaltasks.data.settings.SettingsState
 import com.dima.minimaltasks.data.settings.ThemeMode
 import com.dima.minimaltasks.notifications.AlarmAccuracy
 import com.dima.minimaltasks.notifications.ReminderCoordinator
+import com.dima.minimaltasks.notifications.ReminderIntents
 import com.dima.minimaltasks.notifications.ReminderScheduling
 import com.dima.minimaltasks.ui.theme.MinimalTasksTheme
 import kotlinx.coroutines.CancellationException
@@ -242,6 +243,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         app = application as MinimalTasksApplication
         reminderPermissionController = ReminderPermissionController(this, app)
+        // Only a fresh launch: after recreation the intent is stale and the editor state survives.
+        if (savedInstanceState == null) openTaskFrom(intent)
         setContent {
             // Null until DataStore has answered: starting from the default state would flash the
             // welcome screen at every cold start for users who finished it long ago.
@@ -266,6 +269,18 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openTaskFrom(intent)
+    }
+
+    /** A reminder tap opens its task. Recents re-deliver the old intent, so those are ignored. */
+    private fun openTaskFrom(intent: Intent?) {
+        if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        val taskId = ReminderIntents.taskIdFromUri(intent.dataString) ?: return
+        tasksViewModel.openTaskFromNotification(taskId)
     }
 
     override fun onResume() {
