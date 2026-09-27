@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -465,8 +466,23 @@ private fun MinimalTasksApp(
             }
         }
     }
+    val editorView = LocalView.current
     editor?.let { state ->
-        TaskEditorSheet(state, viewModel, contentResolver, viewModel::cancelEditor)
+        // Only an existing, still-active task can be completed from the editor: edits are saved
+        // first, so the recurrence copy and the undo both see what the user just typed.
+        val onComplete = state.sourceTask?.takeUnless(TaskEntity::completed)?.let { task ->
+            {
+                scope.launch {
+                    if (viewModel.saveEditor()) {
+                        val feedback = CompletionFeedbackPolicy.from(settings)
+                        CompletionFeedback.completionHaptic(editorView, feedback)
+                        if (handleToggleComplete(task)) CompletionFeedback.play(feedback)
+                    }
+                }
+                Unit
+            }
+        }
+        TaskEditorSheet(state, viewModel, contentResolver, viewModel::cancelEditor, onComplete)
     }
 }
 
@@ -646,8 +662,8 @@ private fun CalendarScreen(
                 text = calendarMonthTitle(displayedMonth, locale),
                 color = MaterialTheme.colorScheme.onBackground,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                fontSize = 34.sp,
-                lineHeight = 38.sp,
+                fontSize = 28.sp,
+                lineHeight = 32.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1418,6 +1434,7 @@ private fun TaskEditorSheet(
     viewModel: TasksViewModel,
     contentResolver: android.content.ContentResolver,
     onDismiss: () -> Unit,
+    onComplete: (() -> Unit)?,
 ) {
     // Date and time pickers are platform dialogs: they need an Activity-backed context,
     // an application context fails with BadTokenException.
@@ -1484,7 +1501,15 @@ private fun TaskEditorSheet(
             }
             AttachmentsSection(state, viewModel, launcher, context)
             state.error?.let { Text(stringResource(errorMessage(it)), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+            Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onComplete != null) {
+                    TextButton(onClick = onComplete, contentPadding = PaddingValues(start = 8.dp, end = 12.dp)) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.complete_task))
+                    }
+                }
+                Spacer(Modifier.weight(1f))
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                 Spacer(Modifier.width(8.dp))
                 Button(onClick = { scope.launch { viewModel.saveEditor() } }) { Text(stringResource(R.string.save)) }

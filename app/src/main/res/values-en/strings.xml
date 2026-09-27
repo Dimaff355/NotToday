@@ -94,6 +94,7 @@
     <string name="detail_separator">"  ·  "</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
+    <string name="complete_task">Complete</string>
     <string name="error_title_required">Enter a task title</string>
     <string name="error_recurrence_interval">Interval must be between 1 and 999</string>
     <string name="error_recurrence_due_date">A due date is required for repeating tasks</string>

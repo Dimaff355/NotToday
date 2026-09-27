@@ -94,6 +94,7 @@
     <string name="detail_separator">"  ·  "</string>
     <string name="cancel">取消</string>
     <string name="save">保存</string>
+    <string name="complete_task">完成</string>
     <string name="error_title_required">请输入任务标题</string>
     <string name="error_recurrence_interval">间隔必须为1到999</string>
     <string name="error_recurrence_due_date">重复任务需要设置日期</string>
